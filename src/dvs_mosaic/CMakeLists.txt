@@ -19,6 +19,7 @@ cs_add_executable(${PROJECT_NAME}
   src/poses_groundtruth.cpp
   src/reconstruction.cpp
   src/poisolve/laplace.cpp
+  src/mosaic_brightness.cpp
 )
 
 # Link the executable to the necessary libs

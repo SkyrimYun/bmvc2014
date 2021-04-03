@@ -7,7 +7,10 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <iostream>
 #include <opencv2/highgui.hpp> //cv::imwrite
-
+#include <opencv2/calib3d.hpp> // Rodrigues
+#include <fstream>
+#include <dvs_mosaic/image_util.h>
+#include <dvs_mosaic/reconstruction.h>
 
 namespace dvs_mosaic
 {
@@ -17,43 +20,33 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
  , pnh_("~")
 {
   // Get parameters
-  nh_private.param<int>("Num_ev_map_update", num_events_map_update_, 10000);
-  nh_private.param<int>("Num_ev_pose_update", num_events_pose_update_, 200);
+  // nh_private.param<int>("Num_ev_map_update", num_events_map_update_, 10000);
+  // nh_private.param<int>("Num_ev_pose_update", num_events_pose_update_, 500);
+  num_events_map_update_ = 10000;
+  num_events_pose_update_ = 500;
 
   // Set up subscribers
-  // FILL IN...
   event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
 
 
   // Set up publishers
   image_transport::ImageTransport it_(nh_);
-  // FILL IN...
-  // my topics names: time_map, mosaic, mosaic_gx, mosaic_gy, mosaic_trace_cov,
   mosaic_pub_ = it_.advertise("mosaic", 1);
   time_map_pub_ = it_.advertise("time_map", 1);
   mosaic_gradx_pub_ = it_.advertise("mosaic_gx", 1);
   mosaic_grady_pub_ = it_.advertise("mosaic_gy", 1);
   mosaic_tracecov_pub_ = it_.advertise("mosaic_trace_cov", 1);
-
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("mosaic_pose", 1);
 
-  // Dynamic reconfigure
-  dynamic_reconfigure_callback_ = boost::bind(&Mosaic::reconfigureCallback, this, _1, _2);
-  server_.reset(new dynamic_reconfigure::Server<dvs_mosaic::dvs_mosaicConfig>(nh_private));
-  server_->setCallback(dynamic_reconfigure_callback_);
 
   // Event processing in batches / packets
-  idx_first_ev_map_ = 0;   // Index of first event of processing window
   time_packet_ = ros::Time(0);
 
   // Camera information
-  // This yaml file is provided in folder data/synth1/
   std::string cam_name("DVS-synthetic"); // yaml file should be in placed in /home/ggb/.ros/camera_info
   camera_info_manager::CameraInfoManager cam_info (nh_, cam_name);
   dvs_cam_.fromCameraInfo(cam_info.getCameraInfo());
   const cv::Size sensor_resolution = dvs_cam_.fullResolution();
-  // FILL IN ...
-  // Set sensor_width_, sensor_height_ and precompute bearing vectors
   sensor_width_ = sensor_resolution.width;
   sensor_height_ = sensor_resolution.height;
   precomputeBearingVectors();
@@ -61,37 +54,47 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   // Mosaic size (in pixels)
   mosaic_height_ = 1024; // 512 or 256 for prototyping
   mosaic_width_ = 2 * mosaic_height_;
-  // FILL IN ...
-  // Set mosaic_size_, fx_ and fy_ and Initialize mosaic_img_ (if needed)
   mosaic_size_ = cv::Size(mosaic_width_, mosaic_height_);
   fx_ = mosaic_width_ / (2 * M_PI);
   fy_ = mosaic_height_ / M_PI;
   mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
-  mosaic_img_save_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
-
-  // Observation / Measurement function
-  C_th_ = 0.45; // dataset
-  measure_contrast_ = false;
-  if (measure_contrast_)
-    var_R_ = 0.17*0.17; // units [C_th]^2, (contrast)
-  else
-    var_R_ = 1e4; // units [1/second]^2, (event rate)
-
-  // Mapping variables
-  map_of_last_rotations_.resize(sensor_width_*sensor_height_); // for speed-up
-  grad_map_ = cv::Mat::zeros(mosaic_size_, CV_32FC2);
-  const float grad_init_variance = 10.f;
-  grad_map_covar_ = cv::Mat(mosaic_size_, CV_32FC3, cv::Scalar(grad_init_variance,0.f,grad_init_variance));
 
   // Ground-truth poses for prototyping
   poses_.clear();
   loadPoses();
+
+  // Observation / Measurement function
+  var_process_noise_ = 1e-3;
+  C_th_ = 0.45; // dataset
+  var_R_tracking = 0.17*0.17; // units [C_th]^2, (contrast)
+  var_R_mapping = 1e4; // units [1/second]^2, (event rate)
+
+  // Tracking variables
+  rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
+  cv::randn(rot_vec_, cv::Scalar(0.0), cv::Scalar(1e-5));
+  covar_rot_ = cv::Mat::eye(3, 3, CV_64FC1) * 1e-3;
+
+  // Mapping variables
+  grad_map_ = cv::Mat::zeros(mosaic_size_, CV_32FC2);
+  const float grad_init_variance = 10.f;
+  grad_map_covar_ = cv::Mat(mosaic_size_, CV_32FC3, cv::Scalar(grad_init_variance, 0.f, grad_init_variance));
+  
+  
+  // Estimated poses
+  VLOG(1)
+      << "Set initial pose: ";
+  poses_est_.insert(std::pair<ros::Time, Transformation>(poses_.begin()->first, poses_.begin()->second));
+  // Print initial time and pose (the pose should be the identity)
+  VLOG(1) << "--Estimated pose "
+          << ". time = " << poses_est_.begin()->first;
+  VLOG(1) << "--T = ";
+  VLOG(1) << poses_est_.begin()->second;
+  VLOG(1) << "Set initial pose... done!";
 }
 
 
 Mosaic::~Mosaic()
 {
-  // FILL IN ...
   // shut down all publishers
   mosaic_pub_.shutdown();
   time_map_pub_.shutdown();
@@ -99,24 +102,6 @@ Mosaic::~Mosaic()
   mosaic_grady_pub_.shutdown();
   mosaic_tracecov_pub_.shutdown();
   pose_pub_.shutdown();
-
-  // save binary image
-  std::string filename = "/home/yunfan/work_spaces/EventVision/exe7/mosaic";
-  // cv::FileStorage fs(filename, cv::FileStorage::WRITE);
-  // fs << "mosaic recons map" << mosaic_img_save_;
-
-  const char *filenamechar = filename.c_str();
-  FILE *fpw = fopen(filenamechar, "wb"); //如果没有则创建，如果存在则从头开始写
-  int cols = mosaic_img_save_.cols;  //四个字节存 列数
-  int rows = mosaic_img_save_.rows; //四个字节存 行数
-  fwrite(&cols, sizeof(int), 1, fpw);
-  fwrite(&rows, sizeof(int), 1, fpw);
-  float *dp = (float *)mosaic_img_save_.data;
-  int res = fwrite(dp, sizeof(float), cols*rows, fpw);
-  VLOG(1)<< "Write " << res << " blocks to Mosaic Map";
-  fclose(fpw);
-
-  cv::imwrite("/home/yunfan/work_spaces/EventVision/exe7/mosaic.png", mosaic_img_save_);
 }
 
 /**
@@ -124,9 +109,7 @@ Mosaic::~Mosaic()
 */
 void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
 {
-  // Assume events are sorted in time and event messages come in correct order.
-  // Read events, split the events into packets of constant number of events,...
-
+  
   // Append events of current message to the queue
   for(const dvs_msgs::Event& ev : msg->events)
     events_.push_back(ev);
@@ -138,136 +121,197 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
 
   if (packet_number == 0)
   {
-    // Initialize time map
+    // Initialize time map and last rotation map
     time_map_ = cv::Mat(sensor_height_,sensor_width_,CV_64FC1,cv::Scalar(-0.01));
-    // Let negative time indicate un-initialized pixels
+    map_of_last_rotations_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
   }
   packet_number++;
 
-  // -----------------------------------------------------------------
-  // Call pose tracker (if time allows)
-
-
-  // -----------------------------------------------------------------
-  // Call mapper (EKF + Poisson)
-  while (idx_first_ev_map_ + num_events_map_update_ <= events_.size())
+  
+  while (num_events_pose_update_ <= events_.size())
   {
-    VLOG(1) << "MAP ev= " << idx_first_ev_map_ << " -- "
-            << idx_first_ev_map_ + num_events_map_update_ << ", events_.size()=" << events_.size();
+    VLOG(1) << "TRACK using ev= " << num_events_pose_update_ << " events.  Queue size()=" << events_.size();
+
     // Get subset of events
-    events_subset_ = std::vector<dvs_msgs::Event> (events_.begin() + idx_first_ev_map_,
-                                                   events_.begin() + idx_first_ev_map_ + num_events_map_update_);
+    events_subset_ = std::vector<dvs_msgs::Event> (events_.begin(),
+                                                   events_.begin() + num_events_pose_update_);
 
     // Compute time span of the events
-    ros::Time time_first = events_subset_.front().ts;
-    ros::Time time_last = events_subset_.back().ts;
-    ros::Duration time_dt = time_last - time_first;
+    const ros::Time time_first = events_subset_.front().ts;
+    const ros::Time time_last = events_subset_.back().ts;
+    const ros::Duration time_dt = time_last - time_first;
     time_packet_ = time_first + time_dt * 0.5;
     VLOG(2) << "MAP: duration [s]= "<< time_dt.toSec();
 
-
-    // Call the mapper
-
-    // Split into smaller subsets (about 200 events to share rotation matrix)
-    // Share the same rotation matrix for all events in the batch
-    // because it is expensive to compute this rotation matrix
-    const int num_events_share_Rot = 300;
-    int idx_first_ev_batch = 0;
-    //static int iCount = 0;
-    while ( idx_first_ev_batch < events_subset_.size() )
+    //visualization
+    if(visualize)
     {
-      int num_ev_batch = std::min(num_events_share_Rot, int(events_subset_.size())-idx_first_ev_batch);
-      VLOG(2) << "MAP: idx_first_ev_batch = " << idx_first_ev_batch << "  num_ev_batch = " << num_ev_batch;
+      mosaic_img_vis_ = mosaic_img_.clone();
+      image_util::normalize(mosaic_img_vis_, mosaic_img_vis_, 1.);
+      cv::cvtColor(mosaic_img_vis_, mosaic_img_vis_, cv::COLOR_GRAY2BGR);
+    }
 
-      // Select batch of events that will share the same rotation matrix
-      std::vector<dvs_msgs::Event> events_batch =
-        std::vector<dvs_msgs::Event>(events_subset_.begin() + idx_first_ev_batch,
-                                     events_subset_.begin() + idx_first_ev_batch + num_ev_batch);
+    // Compute ground truth rotation matrix (shared by all events in the batch)
+    cv::Matx33d Rot_gt;
+    rotationAt(time_packet_, Rot_gt);
 
-      // Get (interpolated) rotation
-      // Compute interpolation time
-      ros::Time t_first = events_batch.front().ts;
-      ros::Time t_last = events_batch.back().ts;
-      ros::Duration t_dt = t_last - t_first;
-      ros::Time t_batch = t_first + t_dt * 0.5;
-      VLOG(2) << "MAP: t = " << t_batch.toSec() << ". Batch duration [s] = " << t_dt.toSec();
-      // Compute rotation matrix, shared for all events in the batch
-      cv::Matx33d Rot;
-      rotationAt(t_batch, Rot);
+    // initilize rotation vector with ground truth
+    if(packet_number<1000)
+      cv::Rodrigues(Rot_gt, rot_vec_);
 
-      // Loop through the events
-      //cv::Mat pano_ev = cv::Mat::zeros(mosaic_size_, CV_32FC1);
-      for (const dvs_msgs::Event& ev : events_batch)
+    // packet
+    const int num_events_packet = 500;
+    cv::Mat inno_packet = cv::Mat(num_events_packet, 1, CV_64FC1);
+    cv::Mat jacb_packet = cv::Mat(num_events_packet, 3, CV_64FC1);
+    std::vector<int> idxs;
+
+    // EKF propagation equations for state and covariance
+    const double dt = time_packet_.toSec() - t_prev;
+    t_prev = time_packet_.toSec();
+    int packet_events_count = 0;
+
+    cv::Mat rot_pred = rot_vec_.clone();
+    cv::Mat covar_pred = covar_rot_ + cv::Mat::eye(3, 3, CV_64FC1) * (var_process_noise_ * dt);
+    cv::Matx33d Rot_pred;
+    cv::Rodrigues(rot_pred, Rot_pred);
+
+    // Loop through the events
+    for (const dvs_msgs::Event& ev : events_subset_)
+    {
+      // Get time of current and last event at the pixel
+      const double t_ev = ev.ts.toSec();
+      const double t_prev_pixel = time_map_.at<double>(ev.y, ev.x);
+      time_map_.at<double>(ev.y, ev.x) = t_ev;
+
+      // Get last rotation at the event
+      const int idx = ev.y*sensor_width_ + ev.x;
+      idxs.push_back(idx);
+      cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
+
+      if (t_prev < 0 || std::isnan(Rot_prev(0, 0)))
       {
-        // Get time of current and last event at the pixel
-        const double t_ev = ev.ts.toSec();
-        double t_prev; 
-        // FILL IN: get it from time_map_
-        t_prev = time_map_.at<double>(ev.y, ev.x);
-        // FILL IN: Update time map
-        time_map_.at<double>(ev.y, ev.x) = t_ev;
-
-        // Get last rotation at the event
-        const int idx = ev.y*sensor_width_ + ev.x; 
-        cv::Matx33d Rot_prev; 
-        // FILL IN get it from map_of_last_rotations_
-        Rot_prev = map_of_last_rotations_.at(idx);
-        // FILL IN update (prepare for next iteration)
-        map_of_last_rotations_.at(idx) = Rot;
-
-        /*
-        // Example of plotting events on mosaic
-        // Get map point corresponding to current event
-        cv::Point3d rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
-        cv::Point2f pm;
-        project_EquirectangularProjection(rotated_bvec, pm);
-        const int ic = pm.x, ir = pm.y; // integer position
-        if (0 <= ir && ir < mosaic_height_ && 0 <= ic && ic < mosaic_width_)
-        {
-          pano_ev.at<float>(ir,ic) = (ev.polarity ? 1. : -1.);
-        }
-        */
-
-        if (t_prev < 0)
-        {
-          VLOG(3) << "Uninitialized pixel. Continue";
-          continue;
-        }
-        processEventForMap(ev, t_ev, t_prev, Rot, Rot_prev);
+        VLOG(3) << "Uninitialized pixel. Continue";
+        map_of_last_rotations_[idx] = Rot_pred;
+        continue;
       }
-      idx_first_ev_batch += num_ev_batch;
-      //iCount++;
 
-      /*
-      // Example of saving images (for prototyping / debugging)
-      std::stringstream ss;
-      cv::Mat out_img;
-      ss.str(std::string());
-      ss << "/tmp/pano_ev_" << std::setfill('0') << std::setw(8) << iCount << ".png";
-      cv::normalize(pano_ev, out_img, 0, 255.0, cv::NORM_MINMAX, CV_32FC1);
-      cv::imwrite(ss.str(), out_img );
-      */
+      cv::Mat deriv_pred_contrast;
+      double predicted_contrast = computePredictedConstrastOfEventAndDeriv(ev, rot_pred, Rot_prev, deriv_pred_contrast, true, packet_number);
+      double innovation = C_th_ - (ev.polarity ? 1 : -1) * predicted_contrast;
+      //double innovation = -1;
+      deriv_pred_contrast = ev.polarity ? deriv_pred_contrast : -deriv_pred_contrast;
+
+      inno_packet.row(packet_events_count) = innovation;
+      jacb_packet.row(packet_events_count) = deriv_pred_contrast + 0;
+
+      ++packet_events_count;
+
+      processEventForMap(ev, t_ev, t_prev_pixel, Rot_pred, Rot_prev);
+
+      // Debugging
+      if (extra_log_debugging)
+      {
+        if(packet_number==100)
+        {
+          static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log", std::ofstream::trunc);
+          static int count1 = 0;
+          ofs << "###########################################" << std::endl;
+          ofs << "packet number: " << packet_number << std::endl;
+          ofs << count1++ << std::endl;
+          ofs << "dt*noise: " << dt * var_process_noise_ << std::endl;
+          ofs << "rot prediction:" << std::endl;
+          ofs << Rot_pred << std::endl;
+          ofs << "rot previous:" << std::endl;
+          ofs << Rot_prev << std::endl;
+          ofs << "predicted contrast: " << predicted_contrast << std::endl;
+          ofs << "innovation: " << innovation << std::endl;
+          ofs << "gradient: " << deriv_pred_contrast << std::endl;
+          if (count1 == 500)
+            ofs.close();
+        }
+      }
+
+      // Visualization
+      if (visualize)
+      {
+        // Visualization
+        // Get map point corresponding to current event and ground truth rotation
+        cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
+        cv::Point3d rotated_bvec_est = Rot_pred * precomputed_bearing_vectors_.at(idx);
+
+        cv::Point2f pm_gt;
+        cv::Point2f pm_est;
+
+        project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
+        project_EquirectangularProjection(rotated_bvec_est, pm_est);
+        const int icg = pm_gt.x, irg = pm_gt.y; // integer position
+        if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
+        {
+          cv::circle(mosaic_img_vis_, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
+        }
+        const int ice = pm_est.x, ire = pm_est.y; // integer position
+        if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
+        {
+          cv::circle(mosaic_img_vis_, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
+        }
+      }
+    }
+
+    // if(packet_number>=100)
+    // {
+      // Implement EKF traker correction-step equations. Matrix form (by stacking measurement equations)
+      jacb_packet = jacb_packet(cv::Rect(0, 0, 3, packet_events_count)).clone();
+      inno_packet = inno_packet(cv::Rect(0, 0, 1, packet_events_count)).clone();
+      const double ivar_meas_noise = 1 / var_R_tracking;
+      cv::Mat S_inv_packet = -(ivar_meas_noise * ivar_meas_noise) * jacb_packet * (covar_pred.inv() + ivar_meas_noise * (jacb_packet.t() * jacb_packet)).inv() * jacb_packet.t();
+      S_inv_packet += (cv::Mat::eye(S_inv_packet.rows, S_inv_packet.cols, CV_64FC1) * ivar_meas_noise);
+      cv::Mat kalman_gain_packet = covar_pred * jacb_packet.t() * S_inv_packet;
+      rot_vec_ = rot_pred + kalman_gain_packet * inno_packet;
+      covar_rot_ = covar_pred - kalman_gain_packet * jacb_packet * covar_pred;
+    //}
+   
+
+    cv::Matx33d Rot_cur;
+    cv::Rodrigues(rot_vec_, Rot_cur);
+    for (int n : idxs)
+      map_of_last_rotations_[n] = Rot_cur;
+
+    if(packet_number % 20 == 0)
+    {
+      VLOG(1) << "---- Reconstruct Mosaic ----";
+      poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
     }
 
     publishMap();
-    idx_first_ev_map_ += num_events_map_update_;
+
+    // Debugging
+    if (extra_log_debugging)
+    {
+      if(packet_number>=100)
+      {
+        cv::Matx31d rot_vec_gt;
+        cv::Rodrigues(Rot_gt, rot_vec_gt);
+        static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log_rot", std::ofstream::trunc);
+        static int count2 = 0;
+        ofs << "###########################################" << std::endl;
+        ofs << "packet number: " << packet_number << std::endl;
+        ofs << "packet count: " << packet_events_count << std::endl;
+        ofs << "GT rotation vec: [" << rot_vec_gt(0, 0) << ", " << rot_vec_gt(1, 0) << ", " << rot_vec_gt(2, 0) << std::endl;
+        ofs << "rotation vec: " << std::endl;
+        ofs << rot_vec_ << std::endl;
+        count2++;
+        if (count2 == 100)
+          ofs.close();
+      }
+    }
 
     // Slide
-    events_.erase(events_.begin(), events_.begin() + num_events_map_update_);
-    idx_first_ev_map_ -= num_events_map_update_;
-    VLOG(1) << "-- idx_first_ev_map_ = " << idx_first_ev_map_;
+    events_.erase(events_.begin(), events_.begin() + num_events_pose_update_);
   }
 
 }
 
 
-void Mosaic::reconfigureCallback(dvs_mosaic::dvs_mosaicConfig &config, uint32_t level)
-/**
-* \brief Load dynamic parameters
-*/
-{
-  num_events_map_update_ = config.Num_ev_map_update;
-  num_events_pose_update_ = config.Num_ev_pose_update;
-}
+
 
 }

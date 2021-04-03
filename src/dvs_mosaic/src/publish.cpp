@@ -1,7 +1,6 @@
 #include <dvs_mosaic/mosaic.h>
 #include <dvs_mosaic/image_util.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <dvs_mosaic/reconstruction.h>
 #include <glog/logging.h>
 
 namespace dvs_mosaic
@@ -17,8 +16,6 @@ void Mosaic::publishMap()
 
   if ( time_map_pub_.getNumSubscribers() > 0 )
   {
-    // Time map. Fill content in appropriate range [0,255] and publish
-    // Happening at the camera's image plane
     cv_bridge::CvImage cv_image_time;
     cv_image_time.header.stamp = ros::Time::now();
     cv_image_time.encoding = "mono8";
@@ -29,26 +26,16 @@ void Mosaic::publishMap()
   // Various mosaic-related topics
   cv_bridge::CvImage cv_image;
   cv_image.header.stamp = ros::Time::now();
-  cv_image.encoding = "mono8";
+  cv_image.encoding = "bgr8";
   if ( mosaic_pub_.getNumSubscribers() > 0 )
   {
-    // Brightness image. Fill content in appropriate range [0,255] and publish
-    // Call Poisson solver and publish on mosaic_pub_
-    // FILL IN ...
-    // Hints: call image_util::normalize discarding 1% of pixels
-    poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-    image_util::normalize(mosaic_img_, cv_image.image, 1.);
+    cv_image.image = mosaic_img_vis_;
     mosaic_pub_.publish(cv_image.toImageMsg());
-    mosaic_img_save_ = mosaic_img_;
   }
 
   if ( mosaic_gradx_pub_.getNumSubscribers() > 0 ||
        mosaic_grady_pub_.getNumSubscribers() > 0 )
   {
-    // Visualize gradient map (x and y components)
-    // FILL IN ...
-    // Hints: use cv::split to split a multi-channel array into its channels (images)
-    //        call image_util::normalize
     cv_bridge::CvImage cv_gradx;
     cv_gradx.header.stamp = ros::Time::now();
     cv_gradx.encoding = "mono8";
@@ -66,7 +53,6 @@ void Mosaic::publishMap()
   if ( mosaic_tracecov_pub_.getNumSubscribers() > 0 )
   {
     // Visualize confidence: trace of the covariance of the gradient map
-    // FILL IN ...
     // Hints: use cv::split to split a multi-channel array into its channels (images)
     //        call image_util::normalize
     cv_bridge::CvImage cv_cov;

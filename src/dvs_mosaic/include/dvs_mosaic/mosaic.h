@@ -17,9 +17,6 @@
 #include <kindr/minimal/quat-transformation.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-// Dynamic reconfigure
-#include <dynamic_reconfigure/server.h>
-#include <dvs_mosaic/dvs_mosaicConfig.h>
 
 
 namespace dvs_mosaic
@@ -52,11 +49,6 @@ private:
   void publishPose();
   ros::Time time_packet_;
 
-  // Dynamic reconfigure
-  void reconfigureCallback(dvs_mosaic::dvs_mosaicConfig &config, uint32_t level);
-  boost::shared_ptr<dynamic_reconfigure::Server<dvs_mosaic::dvs_mosaicConfig> > server_;
-  dynamic_reconfigure::Server<dvs_mosaic::dvs_mosaicConfig>::CallbackType dynamic_reconfigure_callback_;
-
   // Sliding window of events
   std::deque<dvs_msgs::Event> events_;
   std::vector<dvs_msgs::Event> events_subset_;
@@ -72,29 +64,58 @@ private:
   float fx_, fy_; // speed-up equiareal projection
 
   // Measurement function
-  bool measure_contrast_;
-  float var_R_;
-  float C_th_;
+  double var_R_mapping;
+  double var_R_tracking;
+  double C_th_;
 
   // Mapping / mosaicing
   int num_events_map_update_;
-  int idx_first_ev_map_;  // index of first event of processing window
+  const double dNaN = std::numeric_limits<double>::quiet_NaN();
   std::vector<cv::Matx33d> map_of_last_rotations_;
-  cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_save_;
+  cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_vis_;
   std::map<ros::Time, Transformation> poses_;
   void loadPoses();
-  void processEventForMap(const dvs_msgs::Event& ev, const double t_ev,
-    const double t_prev, const cv::Matx33d& Rot, const cv::Matx33d& Rot_prev);
-  bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);
-  void project_EquirectangularProjection(const cv::Point3d& pt_3d, cv::Point2f& pt_on_mosaic);
 
-  // Tracking (if time allows)
+
+  // Tracking 
   int num_events_pose_update_;
-  int idx_first_ev_pose_;  // index of first event of processing window
+  std::map<ros::Time, Transformation> poses_est_;
+  cv::Mat rot_vec_;   // state for the tracker
+  cv::Mat covar_rot_; // 3x3 covariance matrix
+  double var_process_noise_;
+  double t_prev = -0.1;
+
+  // Debugging
+  const bool visualize = true;
+  const bool extra_log_debugging = true;
+
+  void processEventForMap(const dvs_msgs::Event &ev, const double t_ev,
+                          const double t_prev, const cv::Matx33d &Rot, const cv::Matx33d &Rot_prev);
+  bool rotationAt(const ros::Time &t_query, cv::Matx33d &Rot_interp);
+  //void project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic);
+  cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
 
   // Precomputed bearing vectors for each camera pixel
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
   void precomputeBearingVectors();
+
+  const int get_mosaic_map = 0;
+  const int get_grad_x = 1;
+  const int get_grad_y = 2;
+  double getMapBrightnessAt(const cv::Point2f &pm, int mode);
+
+  double computePredictedConstrastOfEvent(
+      const cv::Point2f &pm,
+      const cv::Point2f &pm_prev,
+      int packet_number);
+
+  double computePredictedConstrastOfEventAndDeriv(
+      const dvs_msgs::Event &ev,
+      const cv::Matx31d &rot_vec,
+      const cv::Matx33d &Rot_prev,
+      cv::Mat &Jac,
+      bool is_analytic,
+      int packet_number);
 };
 
 } // namespace

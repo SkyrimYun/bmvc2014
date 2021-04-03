@@ -29,11 +29,29 @@ void Mosaic::precomputeBearingVectors()
 * \brief Projects a 3D point according to equirectangular model
 * \note Used for 360 degrees panoramic cameras that outputs a full panorama frame
 */
-void Mosaic::project_EquirectangularProjection(const cv::Point3d& pt_3d, cv::Point2f& pt_on_mosaic)
+cv::Mat Mosaic::project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3)
 {
-  // FILL IN  pt_on_mosaic
-  pt_on_mosaic.x = mosaic_width_ / 2.0 + fx_ * atan2(pt_3d.x, pt_3d.z);
-  pt_on_mosaic.y = mosaic_height_ / 2.0 + fy_ * asin(pt_3d.y / sqrt(pow(pt_3d.x, 2) + pow(pt_3d.y, 2) + pow(pt_3d.z, 2)));
+  const double x = pt_3d.x;
+  const double y = pt_3d.y;
+  const double z = pt_3d.z;
+
+  double rho = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
+  pt_on_mosaic.x = mosaic_width_ / 2.0 + fx_ * atan2(x, z);
+  pt_on_mosaic.y = mosaic_height_ / 2.0 + fy_ * asin(y / rho);
+
+  cv::Mat d2d3 = cv::Mat::zeros(2, 3, CV_64FC1);
+  if (calculate_d2d3)
+  {
+    double temp1 = fx_ / ((1 + pow(x / z, 2)) * z);
+    double temp2 = -fy_ / sqrt(1 - pow(y / rho, 2));
+    double temp3 = y / pow(rho, 3);
+    d2d3.at<double>(0, 0) = temp1;
+    d2d3.at<double>(0, 2) = -temp1 * (x / z);
+    d2d3.at<double>(1, 0) = temp2 * temp3 * x;
+    d2d3.at<double>(1, 1) = temp2 * (temp3 * y - 1 / rho);
+    d2d3.at<double>(1, 2) = temp2 * temp3 * z;
+  }
+  return d2d3;
 }
 
 /** \brief Compute linearly interpolated rotation matrix at a specified query time
