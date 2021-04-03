@@ -6,17 +6,7 @@
         "limitSymbolsToIncludedHeaders": true
       },
       "includePath": [
-        "/home/yunfan/work_spaces/EventVision/exe7/devel/include/**",
         "/opt/ros/melodic/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/rpg_dvs_ros/davis_ros_driver/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/rpg_dvs_ros/dvs_calibration/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/dvs_displayer/dvs_displayer-master-ea7d3668e658a544d3bfbf62abe0c08d6d50c33e/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/rpg_dvs_ros/dvs_renderer/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/rpg_dvs_ros/dvs_ros_driver/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/rpg_dvs_ros/dvxplorer_ros_driver/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/eigen_checks/include/**",
-        "/home/yunfan/work_spaces/EventVision/exe7/src/minkindr/include/**",
         "/usr/include/**"
       ],
       "name": "ROS",

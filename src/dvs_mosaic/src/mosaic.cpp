@@ -114,7 +114,6 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
   for(const dvs_msgs::Event& ev : msg->events)
     events_.push_back(ev);
 
-  static unsigned int packet_number = 0;
   static unsigned long total_event_count = 0;
   total_event_count += msg->events.size();
   VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count << "  queue_size:" << events_.size();
@@ -152,129 +151,37 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     }
 
     // Compute ground truth rotation matrix (shared by all events in the batch)
-    cv::Matx33d Rot_gt;
     rotationAt(time_packet_, Rot_gt);
 
     // initilize rotation vector with ground truth
-    if(packet_number<1000)
+    if(packet_number<100)
       cv::Rodrigues(Rot_gt, rot_vec_);
 
-    // packet
-    const int num_events_packet = 500;
-    cv::Mat inno_packet = cv::Mat(num_events_packet, 1, CV_64FC1);
-    cv::Mat jacb_packet = cv::Mat(num_events_packet, 3, CV_64FC1);
-    std::vector<int> idxs;
 
-    // EKF propagation equations for state and covariance
-    const double dt = time_packet_.toSec() - t_prev;
-    t_prev = time_packet_.toSec();
     int packet_events_count = 0;
-
-    cv::Mat rot_pred = rot_vec_.clone();
-    cv::Mat covar_pred = covar_rot_ + cv::Mat::eye(3, 3, CV_64FC1) * (var_process_noise_ * dt);
-    cv::Matx33d Rot_pred;
-    cv::Rodrigues(rot_pred, Rot_pred);
-
     // Loop through the events
     for (const dvs_msgs::Event& ev : events_subset_)
     {
-      // Get time of current and last event at the pixel
-      const double t_ev = ev.ts.toSec();
-      const double t_prev_pixel = time_map_.at<double>(ev.y, ev.x);
-      time_map_.at<double>(ev.y, ev.x) = t_ev;
-
-      // Get last rotation at the event
-      const int idx = ev.y*sensor_width_ + ev.x;
-      idxs.push_back(idx);
+      // update rotation map
+      const int idx = ev.y * sensor_width_ + ev.x;
+      const cv::Matx33d Rot_cur;
+      cv::Rodrigues(rot_vec_, Rot_cur);
       cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
-
-      if (t_prev < 0 || std::isnan(Rot_prev(0, 0)))
+      map_of_last_rotations_[idx] = Rot_cur;
+      if (std::isnan(Rot_prev(0, 0)))
       {
-        VLOG(3) << "Uninitialized pixel. Continue";
-        map_of_last_rotations_[idx] = Rot_pred;
+        VLOG(3) << "Uninitialized event. Continue";
         continue;
       }
 
-      cv::Mat deriv_pred_contrast;
-      double predicted_contrast = computePredictedConstrastOfEventAndDeriv(ev, rot_pred, Rot_prev, deriv_pred_contrast, true, packet_number);
-      double innovation = C_th_ - (ev.polarity ? 1 : -1) * predicted_contrast;
-      //double innovation = -1;
-      deriv_pred_contrast = ev.polarity ? deriv_pred_contrast : -deriv_pred_contrast;
-
-      inno_packet.row(packet_events_count) = innovation;
-      jacb_packet.row(packet_events_count) = deriv_pred_contrast + 0;
+      if(packet_number>=100)
+        processEventForTrack(ev, Rot_prev);
+      processEventForMap(ev, Rot_cur, Rot_prev);
 
       ++packet_events_count;
 
-      processEventForMap(ev, t_ev, t_prev_pixel, Rot_pred, Rot_prev);
-
-      // Debugging
-      if (extra_log_debugging)
-      {
-        if(packet_number==100)
-        {
-          static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log", std::ofstream::trunc);
-          static int count1 = 0;
-          ofs << "###########################################" << std::endl;
-          ofs << "packet number: " << packet_number << std::endl;
-          ofs << count1++ << std::endl;
-          ofs << "dt*noise: " << dt * var_process_noise_ << std::endl;
-          ofs << "rot prediction:" << std::endl;
-          ofs << Rot_pred << std::endl;
-          ofs << "rot previous:" << std::endl;
-          ofs << Rot_prev << std::endl;
-          ofs << "predicted contrast: " << predicted_contrast << std::endl;
-          ofs << "innovation: " << innovation << std::endl;
-          ofs << "gradient: " << deriv_pred_contrast << std::endl;
-          if (count1 == 500)
-            ofs.close();
-        }
-      }
-
-      // Visualization
-      if (visualize)
-      {
-        // Visualization
-        // Get map point corresponding to current event and ground truth rotation
-        cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
-        cv::Point3d rotated_bvec_est = Rot_pred * precomputed_bearing_vectors_.at(idx);
-
-        cv::Point2f pm_gt;
-        cv::Point2f pm_est;
-
-        project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
-        project_EquirectangularProjection(rotated_bvec_est, pm_est);
-        const int icg = pm_gt.x, irg = pm_gt.y; // integer position
-        if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
-        {
-          cv::circle(mosaic_img_vis_, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
-        }
-        const int ice = pm_est.x, ire = pm_est.y; // integer position
-        if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
-        {
-          cv::circle(mosaic_img_vis_, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
-        }
-      }
     }
 
-    // if(packet_number>=100)
-    // {
-      // Implement EKF traker correction-step equations. Matrix form (by stacking measurement equations)
-      jacb_packet = jacb_packet(cv::Rect(0, 0, 3, packet_events_count)).clone();
-      inno_packet = inno_packet(cv::Rect(0, 0, 1, packet_events_count)).clone();
-      const double ivar_meas_noise = 1 / var_R_tracking;
-      cv::Mat S_inv_packet = -(ivar_meas_noise * ivar_meas_noise) * jacb_packet * (covar_pred.inv() + ivar_meas_noise * (jacb_packet.t() * jacb_packet)).inv() * jacb_packet.t();
-      S_inv_packet += (cv::Mat::eye(S_inv_packet.rows, S_inv_packet.cols, CV_64FC1) * ivar_meas_noise);
-      cv::Mat kalman_gain_packet = covar_pred * jacb_packet.t() * S_inv_packet;
-      rot_vec_ = rot_pred + kalman_gain_packet * inno_packet;
-      covar_rot_ = covar_pred - kalman_gain_packet * jacb_packet * covar_pred;
-    //}
-   
-
-    cv::Matx33d Rot_cur;
-    cv::Rodrigues(rot_vec_, Rot_cur);
-    for (int n : idxs)
-      map_of_last_rotations_[n] = Rot_cur;
 
     if(packet_number % 20 == 0)
     {

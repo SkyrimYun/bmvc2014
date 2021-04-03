@@ -65,8 +65,7 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
 */
 double Mosaic::computePredictedConstrastOfEvent(
     const cv::Point2f &pm,
-    const cv::Point2f &pm_prev,
-    int packet_number)
+    const cv::Point2f &pm_prev)
 {
   // Get map intensity at point pm
   const double brightnessM_pm = getMapBrightnessAt(pm, get_mosaic_map);
@@ -76,22 +75,22 @@ double Mosaic::computePredictedConstrastOfEvent(
   // Compute the prediction of C_th
   const double predicted_contrast = (brightnessM_pm - brightnessM_pm_prev);
 
-  if (packet_number == 100)
-  {
-    static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
-    static int count4 = 0;
-    ofs << "###########################################" << std::endl;
-    ofs << "packet number: " << packet_number << std::endl;
-    ofs << count4++ << std::endl;
-    ofs << "pm: " << std::endl;
-    ofs << pm << std::endl;
-    ofs << "pm previous:" << std::endl;
-    ofs << pm_prev << std::endl;
-    ofs << "brightness pm: " << brightnessM_pm << std::endl;
-    ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
-    if (count4 == 500)
-      ofs.close();
-  }
+  // if (packet_number == 100)
+  // {
+  //   static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
+  //   static int count4 = 0;
+  //   ofs << "###########################################" << std::endl;
+  //   ofs << "packet number: " << packet_number << std::endl;
+  //   ofs << count4++ << std::endl;
+  //   ofs << "pm: " << std::endl;
+  //   ofs << pm << std::endl;
+  //   ofs << "pm previous:" << std::endl;
+  //   ofs << pm_prev << std::endl;
+  //   ofs << "brightness pm: " << brightnessM_pm << std::endl;
+  //   ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
+  //   if (count4 == 500)
+  //     ofs.close();
+  // }
 
    VLOG(2) << "predicted_contrast = " << predicted_contrast;
   return predicted_contrast;
@@ -107,8 +106,7 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
   const cv::Matx31d& rot_vec,
   const cv::Matx33d& Rot_prev,
   cv::Mat& Jac,
-  bool is_analytic,
-  int packet_number)
+  bool is_analytic)
 {
   VLOG(2) << "f(x)";
   cv::Matx33d Rot;
@@ -124,27 +122,27 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
   cv::Point2f pm_prev;
   project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-  const double fx = computePredictedConstrastOfEvent(pm, pm_prev, packet_number);
+  const double fx = computePredictedConstrastOfEvent(pm, pm_prev);
 
-  if (packet_number == 100)
-  {
-    static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_log", std::ofstream::trunc);
-    static int count3 = 0;
-    ofs << "###########################################" << std::endl;
-    ofs << "packet number: " << packet_number << std::endl;
-    ofs << count3++ << std::endl;
-    ofs << "rot prediction:" << std::endl;
-    ofs << Rot << std::endl;
-    ofs << "rot previous:" << std::endl;
-    ofs << Rot_prev << std::endl;
-    ofs << "pm: " << std::endl;
-    ofs << pm << std::endl;
-    ofs << "pm previous:" << std::endl;
-    ofs << pm_prev << std::endl;
-    ofs << "predicted contrast: " << fx << std::endl;
-    if (count3 == 500)
-      ofs.close();
-  }
+  // if (packet_number == 100)
+  // {
+  //   static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_log", std::ofstream::trunc);
+  //   static int count3 = 0;
+  //   ofs << "###########################################" << std::endl;
+  //   ofs << "packet number: " << packet_number << std::endl;
+  //   ofs << count3++ << std::endl;
+  //   ofs << "rot prediction:" << std::endl;
+  //   ofs << Rot << std::endl;
+  //   ofs << "rot previous:" << std::endl;
+  //   ofs << Rot_prev << std::endl;
+  //   ofs << "pm: " << std::endl;
+  //   ofs << pm << std::endl;
+  //   ofs << "pm previous:" << std::endl;
+  //   ofs << pm_prev << std::endl;
+  //   ofs << "predicted contrast: " << fx << std::endl;
+  //   if (count3 == 500)
+  //     ofs.close();
+  // }
 
   Jac = cv::Mat::zeros(1, 3, CV_64FC1);
   if(is_analytic)
@@ -172,7 +170,7 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
       cv::Rodrigues(rot_vec_h, Rot); // convert parameter vector to Rotation
       rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
       project_EquirectangularProjection(rotated_bvec, pm);
-      const double fh = computePredictedConstrastOfEvent(pm, pm_prev, 1);
+      const double fh = computePredictedConstrastOfEvent(pm, pm_prev);
       Jac.at<double>(0, j) = (fh - fx) / h; // forward finite difference: ( f(x+h)-f(x) ) / h
     }
   }

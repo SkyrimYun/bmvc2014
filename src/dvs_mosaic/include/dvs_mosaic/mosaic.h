@@ -68,6 +68,9 @@ private:
   double var_R_tracking;
   double C_th_;
 
+  // reference ground truth value
+  cv::Matx33d Rot_gt;
+
   // Mapping / mosaicing
   int num_events_map_update_;
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
@@ -83,14 +86,13 @@ private:
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
-  double t_prev = -0.1;
 
   // Debugging
   const bool visualize = true;
   const bool extra_log_debugging = true;
+  unsigned int packet_number = 0;
 
-  void processEventForMap(const dvs_msgs::Event &ev, const double t_ev,
-                          const double t_prev, const cv::Matx33d &Rot, const cv::Matx33d &Rot_prev);
+  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot, const cv::Matx33d Rot_prev);
   bool rotationAt(const ros::Time &t_query, cv::Matx33d &Rot_interp);
   //void project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic);
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
@@ -99,6 +101,8 @@ private:
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
   void precomputeBearingVectors();
 
+  void processEventForTrack(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
+
   const int get_mosaic_map = 0;
   const int get_grad_x = 1;
   const int get_grad_y = 2;
@@ -106,16 +110,14 @@ private:
 
   double computePredictedConstrastOfEvent(
       const cv::Point2f &pm,
-      const cv::Point2f &pm_prev,
-      int packet_number);
+      const cv::Point2f &pm_prev);
 
   double computePredictedConstrastOfEventAndDeriv(
       const dvs_msgs::Event &ev,
       const cv::Matx31d &rot_vec,
       const cv::Matx33d &Rot_prev,
       cv::Mat &Jac,
-      bool is_analytic,
-      int packet_number);
+      bool is_analytic);
 };
 
 } // namespace
