@@ -28,6 +28,7 @@ target_link_libraries(${PROJECT_NAME}
    ${catkin_LIBRARIES}
    ${OpenCV_LIBRARIES}
    fftw3 fftw3_threads
+   pthread
 )
 
 cs_install()

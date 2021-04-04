@@ -17,7 +17,9 @@
 #include <kindr/minimal/quat-transformation.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-
+#include <thread>
+#include <atomic>
+#include <mutex>
 
 namespace dvs_mosaic
 {
@@ -87,10 +89,17 @@ private:
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
 
+  
+  // Threads
+  std::thread reconstruct_thread_;
+  void reconstuctMosaic();
+  std::atomic<int> packet_number;
+  std::mutex data_lock_;
+
   // Debugging
   const bool visualize = true;
   const bool extra_log_debugging = true;
-  unsigned int packet_number = 0;
+  
 
   void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
   bool rotationAt(const ros::Time &t_query, cv::Matx33d &Rot_interp);

@@ -64,22 +64,27 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   loadPoses();
 
   // Observation / Measurement function
-  var_process_noise_ = 1e-3;
+  var_process_noise_ = 9e-6;
   C_th_ = 0.45; // dataset
-  var_R_tracking = 0.17*0.17; // units [C_th]^2, (contrast)
-  var_R_mapping = 1e4; // units [1/second]^2, (event rate)
+  //var_R_tracking = 0.17*0.17; // units [C_th]^2, (contrast)
+  var_R_tracking = 0.01*0.01; // units [C_th]^2, (contrast)
+  var_R_mapping = 2.5e3; // units [1/second]^2, (event rate)
 
   // Tracking variables
   rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
   cv::randn(rot_vec_, cv::Scalar(0.0), cv::Scalar(1e-5));
   covar_rot_ = cv::Mat::eye(3, 3, CV_64FC1) * 1e-3;
+  //covar_rot_ = cv::Mat::zeros(3, 3, CV_64FC1);
 
   // Mapping variables
   grad_map_ = cv::Mat::zeros(mosaic_size_, CV_32FC2);
-  const float grad_init_variance = 10.f;
+  const float grad_init_variance = 30.f;
   grad_map_covar_ = cv::Mat(mosaic_size_, CV_32FC3, cv::Scalar(grad_init_variance, 0.f, grad_init_variance));
-  
-  
+
+  reconstruct_thread_ = std::thread(std::bind(&Mosaic::reconstuctMosaic, this));
+  packet_number = 0;
+
+
   // Estimated poses
   VLOG(1)
       << "Set initial pose: ";
@@ -102,6 +107,8 @@ Mosaic::~Mosaic()
   mosaic_grady_pub_.shutdown();
   mosaic_tracecov_pub_.shutdown();
   pose_pub_.shutdown();
+
+  reconstruct_thread_.join();
 }
 
 /**
@@ -111,7 +118,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
 {
   
   // Append events of current message to the queue
-  for(const dvs_msgs::Event& ev : msg->events)
+  for (const dvs_msgs::Event &ev : msg->events)
     events_.push_back(ev);
 
   static unsigned long total_event_count = 0;
@@ -126,9 +133,10 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
   }
   packet_number++;
 
-  
   while (num_events_update_ <= events_.size())
   {
+    std::unique_lock<std::mutex> lock(data_lock_);
+
     VLOG(1) << "TRACK using ev= " << num_events_update_ << " events.  Queue size()=" << events_.size();
 
     // Get subset of events
@@ -182,13 +190,6 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
 
     }
 
-
-    if(packet_number % num_packet_reconstrct_mosaic_ == 0)
-    {
-      VLOG(1) << "---- Reconstruct Mosaic ----";
-      poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-    }
-
     publishMap();
 
     // Debugging
@@ -211,14 +212,9 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
           ofs.close();
       }
     }
-
     // Slide
     events_.erase(events_.begin(), events_.begin() + num_events_update_);
   }
 
 }
-
-
-
-
 }

@@ -1,5 +1,6 @@
 #include <dvs_mosaic/mosaic.h>
 #include <glog/logging.h>
+#include <dvs_mosaic/reconstruction.h>
 #include <fstream>
 
 
@@ -127,4 +128,19 @@ void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot
     }
   }
 }
+
+
+void Mosaic::reconstuctMosaic()
+{
+  while(true)
+  {
+    if (packet_number > 0 && packet_number % num_packet_reconstrct_mosaic_ == 0)
+    {
+      std::unique_lock<std::mutex> lock(data_lock_);
+      VLOG(1) << "---- Reconstruct Mosaic ----";
+      poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
+    }
+  }
+}
+
 }
