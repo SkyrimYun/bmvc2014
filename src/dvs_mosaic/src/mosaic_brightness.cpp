@@ -103,14 +103,13 @@ double Mosaic::computePredictedConstrastOfEvent(
  */
 double Mosaic::computePredictedConstrastOfEventAndDeriv (
   const dvs_msgs::Event& ev,
-  const cv::Matx31d& rot_vec,
   const cv::Matx33d& Rot_prev,
   cv::Mat& Jac,
   bool is_analytic)
 {
   VLOG(2) << "f(x)";
-  cv::Matx33d Rot;
-  cv::Rodrigues(rot_vec, Rot); // convert parameter vector to Rotation
+  const cv::Matx33d Rot;
+  cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
 
   // Get map point corresponding to current event and given rotation
   const int idx = ev.y * sensor_width_ + ev.x;
@@ -151,7 +150,7 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
     double M_deriv_x = getMapBrightnessAt(pm, get_grad_x);
     double M_deriv_y = getMapBrightnessAt(pm, get_grad_y);
     Jac = M_deriv_x * (dpm_d3d.row(0)).t() + M_deriv_y * (dpm_d3d.row(1)).t();
-    cv::Mat v = cv::Mat(rot_vec);
+    cv::Mat v = cv::Mat(rot_vec_);
     double v_norm = cv::norm(v);
     cv::Mat v2skew = (cv::Mat_<double>(3, 3) << 0, -v.at<double>(2, 0), v.at<double>(1, 0), v.at<double>(2, 0), 0, -v.at<double>(0, 0), -v.at<double>(1, 0), v.at<double>(0, 0), 0);
     cv::Mat matrix_factor = (v * v.t() + (cv::Mat(Rot).t() - cv::Mat::eye(3, 3, CV_64FC1)) * v2skew) / pow(v_norm, 2);
@@ -165,7 +164,7 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
     const double h = 1e-2; // [rad] step in the finite difference formula
     for (int j=0; j<3; j++)
     {
-      cv::Matx31d rot_vec_h(rot_vec);
+      cv::Matx31d rot_vec_h(rot_vec_);
       rot_vec_h(j, 0) += h;
       cv::Rodrigues(rot_vec_h, Rot); // convert parameter vector to Rotation
       rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);

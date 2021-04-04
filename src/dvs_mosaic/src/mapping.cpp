@@ -9,7 +9,7 @@ namespace dvs_mosaic
 /**
 * \brief Process each event to refine the mosaic variables (mean and covariance)
 */
-void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot, const cv::Matx33d Rot_prev)
+void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev)
 {
   const int idx = ev.y * sensor_width_ + ev.x;
 
@@ -30,6 +30,8 @@ void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot
 
   const double thres = ev.polarity ? 1.0 : -1.0;
 
+  const cv::Matx33d Rot;
+  cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
 
   // Get map point corresponding to current event
   // hint: call project_EquirectangularProjection

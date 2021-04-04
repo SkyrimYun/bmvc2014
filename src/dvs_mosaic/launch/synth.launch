@@ -1,6 +1,6 @@
 <launch>
 
-  <node pkg="rosbag" type="play" name="player" args="--pause -r 1.0 -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
+  <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
 
 
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">

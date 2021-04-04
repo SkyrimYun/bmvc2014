@@ -13,7 +13,7 @@ namespace dvs_mosaic
         cv::Mat covar_pred = covar_rot_ + cv::Mat::eye(3, 3, CV_64FC1) * (var_process_noise_ * dt);
 
         cv::Mat deriv_pred_contrast;
-        double predicted_contrast = computePredictedConstrastOfEventAndDeriv(ev, rot_vec_, Rot_prev, deriv_pred_contrast, true);
+        double predicted_contrast = computePredictedConstrastOfEventAndDeriv(ev, Rot_prev, deriv_pred_contrast, true);
         //double innovation = C_th_ - (ev.polarity ? 1 : -1) * predicted_contrast;
         double innovation = C_th_ - predicted_contrast;
         deriv_pred_contrast = (ev.polarity ? 1 : -1) * deriv_pred_contrast;

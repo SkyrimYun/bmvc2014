@@ -22,8 +22,8 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   // Get parameters
   // nh_private.param<int>("Num_ev_map_update", num_events_map_update_, 10000);
   // nh_private.param<int>("Num_ev_pose_update", num_events_pose_update_, 500);
-  num_events_map_update_ = 10000;
-  num_events_pose_update_ = 500;
+  num_packet_reconstrct_mosaic_ = 20;
+  num_events_update_ = 500;
 
   // Set up subscribers
   event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -127,13 +127,13 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
   packet_number++;
 
   
-  while (num_events_pose_update_ <= events_.size())
+  while (num_events_update_ <= events_.size())
   {
-    VLOG(1) << "TRACK using ev= " << num_events_pose_update_ << " events.  Queue size()=" << events_.size();
+    VLOG(1) << "TRACK using ev= " << num_events_update_ << " events.  Queue size()=" << events_.size();
 
     // Get subset of events
     events_subset_ = std::vector<dvs_msgs::Event> (events_.begin(),
-                                                   events_.begin() + num_events_pose_update_);
+                                                   events_.begin() + num_events_update_);
 
     // Compute time span of the events
     const ros::Time time_first = events_subset_.front().ts;
@@ -174,16 +174,16 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
         continue;
       }
 
-      if(packet_number>=100)
+      //if(packet_number>=100)
         processEventForTrack(ev, Rot_prev);
-      processEventForMap(ev, Rot_cur, Rot_prev);
+      processEventForMap(ev, Rot_prev);
 
       ++packet_events_count;
 
     }
 
 
-    if(packet_number % 20 == 0)
+    if(packet_number % num_packet_reconstrct_mosaic_ == 0)
     {
       VLOG(1) << "---- Reconstruct Mosaic ----";
       poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
@@ -213,7 +213,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     }
 
     // Slide
-    events_.erase(events_.begin(), events_.begin() + num_events_pose_update_);
+    events_.erase(events_.begin(), events_.begin() + num_events_update_);
   }
 
 }

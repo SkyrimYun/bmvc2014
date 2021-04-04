@@ -72,7 +72,7 @@ private:
   cv::Matx33d Rot_gt;
 
   // Mapping / mosaicing
-  int num_events_map_update_;
+  int num_packet_reconstrct_mosaic_;
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
   std::vector<cv::Matx33d> map_of_last_rotations_;
   cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_vis_;
@@ -81,7 +81,7 @@ private:
 
 
   // Tracking 
-  int num_events_pose_update_;
+  int num_events_update_;
   std::map<ros::Time, Transformation> poses_est_;
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
@@ -92,7 +92,7 @@ private:
   const bool extra_log_debugging = true;
   unsigned int packet_number = 0;
 
-  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot, const cv::Matx33d Rot_prev);
+  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
   bool rotationAt(const ros::Time &t_query, cv::Matx33d &Rot_interp);
   //void project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic);
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
@@ -114,7 +114,6 @@ private:
 
   double computePredictedConstrastOfEventAndDeriv(
       const dvs_msgs::Event &ev,
-      const cv::Matx31d &rot_vec,
       const cv::Matx33d &Rot_prev,
       cv::Mat &Jac,
       bool is_analytic);
