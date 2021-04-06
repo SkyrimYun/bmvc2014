@@ -134,12 +134,12 @@ void Mosaic::reconstuctMosaic()
 {
   while(true)
   {
-    if (packet_number > 0 && packet_number % num_packet_reconstrct_mosaic_ == 0)
-    {
-      std::unique_lock<std::mutex> lock(data_lock_);
-      VLOG(1) << "---- Reconstruct Mosaic ----";
-      poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-    }
+    std::unique_lock<std::mutex> lock(data_lock_);
+    reconstruct_.wait(lock);
+    VLOG(1) << "---- Reconstruct Mosaic ----";
+    poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
+    cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), 1);
+    reconstruct_.notify_one();
   }
 }
 

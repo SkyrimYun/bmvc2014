@@ -52,7 +52,7 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   precomputeBearingVectors();
 
   // Mosaic size (in pixels)
-  mosaic_height_ = 1024; // 512 or 256 for prototyping
+  mosaic_height_ = 512; // 512 or 256 for prototyping
   mosaic_width_ = 2 * mosaic_height_;
   mosaic_size_ = cv::Size(mosaic_width_, mosaic_height_);
   fx_ = mosaic_width_ / (2 * M_PI);
@@ -64,11 +64,13 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   loadPoses();
 
   // Observation / Measurement function
-  var_process_noise_ = 9e-6;
+  var_process_noise_ = 1e-3;
+  //var_process_noise_ = 9e-6;
   C_th_ = 0.45; // dataset
-  //var_R_tracking = 0.17*0.17; // units [C_th]^2, (contrast)
-  var_R_tracking = 0.01*0.01; // units [C_th]^2, (contrast)
-  var_R_mapping = 2.5e3; // units [1/second]^2, (event rate)
+  var_R_tracking = 0.17*0.17; // units [C_th]^2, (contrast)
+  //var_R_tracking = 0.01*0.01; // units [C_th]^2, (contrast)
+  //var_R_mapping = 2.5e3; // units [1/second]^2, (event rate)
+  var_R_mapping = 1e4;
 
   // Tracking variables
   rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -78,7 +80,7 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
 
   // Mapping variables
   grad_map_ = cv::Mat::zeros(mosaic_size_, CV_32FC2);
-  const float grad_init_variance = 30.f;
+  const float grad_init_variance = 10.f;
   grad_map_covar_ = cv::Mat(mosaic_size_, CV_32FC3, cv::Scalar(grad_init_variance, 0.f, grad_init_variance));
 
   reconstruct_thread_ = std::thread(std::bind(&Mosaic::reconstuctMosaic, this));
@@ -133,9 +135,15 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
   }
   packet_number++;
 
+  if(packet_number%num_packet_reconstrct_mosaic_==0)
+  {
+    reconstruct_.notify_one();
+    std::unique_lock<std::mutex> lock(data_lock_);
+    reconstruct_.wait(lock);
+  }
+
   while (num_events_update_ <= events_.size())
   {
-    std::unique_lock<std::mutex> lock(data_lock_);
 
     VLOG(1) << "TRACK using ev= " << num_events_update_ << " events.  Queue size()=" << events_.size();
 
@@ -162,7 +170,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     rotationAt(time_packet_, Rot_gt);
 
     // initilize rotation vector with ground truth
-    if(packet_number<100)
+    if(packet_number<300)
       cv::Rodrigues(Rot_gt, rot_vec_);
 
 
@@ -182,7 +190,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
         continue;
       }
 
-      //if(packet_number>=100)
+      //if(packet_number>=300)
         processEventForTrack(ev, Rot_prev);
       processEventForMap(ev, Rot_prev);
 
@@ -214,7 +222,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     }
     // Slide
     events_.erase(events_.begin(), events_.begin() + num_events_update_);
-  }
 
+  }
 }
 }

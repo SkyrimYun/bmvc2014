@@ -20,6 +20,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 
 namespace dvs_mosaic
 {
@@ -89,12 +90,13 @@ private:
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
 
-  
+  int packet_number;
+
   // Threads
   std::thread reconstruct_thread_;
   void reconstuctMosaic();
-  std::atomic<int> packet_number;
   std::mutex data_lock_;
+  std::condition_variable reconstruct_;
 
   // Debugging
   const bool visualize = true;

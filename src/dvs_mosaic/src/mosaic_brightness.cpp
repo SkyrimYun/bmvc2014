@@ -92,7 +92,7 @@ double Mosaic::computePredictedConstrastOfEvent(
   //     ofs.close();
   // }
 
-   VLOG(2) << "predicted_contrast = " << predicted_contrast;
+  VLOG(2) << "predicted_contrast = " << predicted_contrast;
   return predicted_contrast;
 }
 
