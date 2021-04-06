@@ -12,8 +12,29 @@ namespace dvs_mosaic
 
         cv::Mat covar_pred = covar_rot_ + cv::Mat::eye(3, 3, CV_64FC1) * (var_process_noise_ * dt);
 
+        const cv::Matx33d Rot;
+        cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
+
+        // Get map point corresponding to current event and given rotation
+        const int idx = ev.y * sensor_width_ + ev.x;
+        cv::Point3d rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
+        cv::Point2f pm;
+        cv::Mat dpm_d3d = project_EquirectangularProjection(rotated_bvec, pm, true);
+
+        if(pm.x>pm_packet_max.x || pm.y>pm_packet_max.y || pm.x<pm_packet_min.x || pm.y<pm_packet_min.y)
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            return;
+        }
+
+        cv::Point3d rotated_bvec_prev = Rot_prev * precomputed_bearing_vectors_.at(idx);
+        cv::Point2f pm_prev;
+        project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
+
+        double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
+
         cv::Mat deriv_pred_contrast;
-        double predicted_contrast = computePredictedConstrastOfEventAndDeriv(ev, Rot_prev, deriv_pred_contrast, true);
+        computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast, true);
         //double innovation = C_th_ - (ev.polarity ? 1 : -1) * predicted_contrast;
         double innovation = C_th_ - predicted_contrast;
         deriv_pred_contrast = (ev.polarity ? 1 : -1) * deriv_pred_contrast;

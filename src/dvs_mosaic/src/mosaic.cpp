@@ -173,7 +173,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     if(packet_number<300)
       cv::Rodrigues(Rot_gt, rot_vec_);
 
-
+    
     int packet_events_count = 0;
     // Loop through the events
     for (const dvs_msgs::Event& ev : events_subset_)
@@ -199,6 +199,15 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     }
 
     publishMap();
+
+    // calculate current frame points
+    cv::Rodrigues(rot_vec_, Rot_packet);
+    cv::Point3d min_bvec = Rot_packet * precomputed_bearing_vectors_.front();
+    cv::Point3d max_bvec = Rot_packet * precomputed_bearing_vectors_.back();
+    project_EquirectangularProjection(min_bvec, pm_packet_min);
+    project_EquirectangularProjection(max_bvec, pm_packet_max);
+    VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
+
 
     // Debugging
     if (extra_log_debugging)

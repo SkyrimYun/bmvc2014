@@ -89,7 +89,10 @@ private:
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
 
+  // packet
   int packet_number;
+  cv::Matx33d Rot_packet;
+  cv::Point2f pm_packet_min, pm_packet_max;
 
   // Threads
   std::thread reconstruct_thread_;
@@ -122,9 +125,10 @@ private:
       const cv::Point2f &pm,
       const cv::Point2f &pm_prev);
 
-  double computePredictedConstrastOfEventAndDeriv(
-      const dvs_msgs::Event &ev,
-      const cv::Matx33d &Rot_prev,
+  void computeDeriv(
+      const cv::Point2f pm,
+      const cv::Mat dpm_d3d,
+      const cv::Point3d rotated_bvec,
       cv::Mat &Jac,
       bool is_analytic);
 };

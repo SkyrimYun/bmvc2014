@@ -17,7 +17,6 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
   if (1 <= ir && ir < mosaic_height_ - 2 && 1 <= ic && ic < mosaic_width_ - 2)
   {
     
-
     // Bilinear interpolation
     double dx = pm.x - ic;
     double dy = pm.y - ir;
@@ -77,23 +76,6 @@ double Mosaic::computePredictedConstrastOfEvent(
   // Compute the prediction of C_th
   const double predicted_contrast = (brightnessM_pm - brightnessM_pm_prev);
 
-  if (brightnessM_pm==0.0&& packet_number>20)
-  {
-    static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
-    static int count4 = 0;
-    ofs << "###########################################" << std::endl;
-    ofs << "packet number: " << packet_number << std::endl;
-    ofs << count4++ << std::endl;
-    ofs << "pm: " << std::endl;
-    ofs << pm << std::endl;
-    ofs << "pm previous:" << std::endl;
-    ofs << pm_prev << std::endl;
-    ofs << "brightness pm: " << brightnessM_pm << std::endl;
-    ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
-    if (count4 == 5000)
-      ofs.close();
-  }
-
   VLOG(2) << "predicted_contrast = " << predicted_contrast;
   return predicted_contrast;
 }
@@ -103,27 +85,28 @@ double Mosaic::computePredictedConstrastOfEvent(
  * and two given rotations.
  * Compute also its numerical derivative (using forward differences)
  */
-double Mosaic::computePredictedConstrastOfEventAndDeriv (
-  const dvs_msgs::Event& ev,
-  const cv::Matx33d& Rot_prev,
-  cv::Mat& Jac,
-  bool is_analytic)
+void Mosaic::computeDeriv(
+    const cv::Point2f pm,
+    const cv::Mat dpm_d3d,
+    const cv::Point3d rotated_bvec,
+    cv::Mat &Jac,
+    bool is_analytic)
 {
   VLOG(2) << "f(x)";
-  const cv::Matx33d Rot;
-  cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
+  // const cv::Matx33d Rot;
+  // cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
 
-  // Get map point corresponding to current event and given rotation
-  const int idx = ev.y * sensor_width_ + ev.x;
-  cv::Point3d rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
-  cv::Point2f pm;
-  cv::Mat dpm_d3d = project_EquirectangularProjection(rotated_bvec, pm, true);
+  // // Get map point corresponding to current event and given rotation
+  // const int idx = ev.y * sensor_width_ + ev.x;
+  // cv::Point3d rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
+  // cv::Point2f pm;
+  // cv::Mat dpm_d3d = project_EquirectangularProjection(rotated_bvec, pm, true);
 
-  cv::Point3d rotated_bvec_prev = Rot_prev * precomputed_bearing_vectors_.at(idx);
-  cv::Point2f pm_prev;
-  project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
+  // cv::Point3d rotated_bvec_prev = Rot_prev * precomputed_bearing_vectors_.at(idx);
+  // cv::Point2f pm_prev;
+  // project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-  const double fx = computePredictedConstrastOfEvent(pm, pm_prev);
+  // const double fx = computePredictedConstrastOfEvent(pm, pm_prev);
 
   // if (packet_number == 100)
   // {
@@ -145,6 +128,9 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
   //     ofs.close();
   // }
 
+  const cv::Matx33d Rot;
+  cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
+
   Jac = cv::Mat::zeros(1, 3, CV_64FC1);
   if(is_analytic)
   {
@@ -163,19 +149,18 @@ double Mosaic::computePredictedConstrastOfEventAndDeriv (
   else
   {
     // Numerical derivative of f at x
-    const double h = 1e-2; // [rad] step in the finite difference formula
-    for (int j=0; j<3; j++)
-    {
-      cv::Matx31d rot_vec_h(rot_vec_);
-      rot_vec_h(j, 0) += h;
-      cv::Rodrigues(rot_vec_h, Rot); // convert parameter vector to Rotation
-      rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
-      project_EquirectangularProjection(rotated_bvec, pm);
-      const double fh = computePredictedConstrastOfEvent(pm, pm_prev);
-      Jac.at<double>(0, j) = (fh - fx) / h; // forward finite difference: ( f(x+h)-f(x) ) / h
-    }
+    // const double h = 1e-2; // [rad] step in the finite difference formula
+    // for (int j=0; j<3; j++)
+    // {
+    //   cv::Matx31d rot_vec_h(rot_vec_);
+    //   rot_vec_h(j, 0) += h;
+    //   cv::Rodrigues(rot_vec_h, Rot); // convert parameter vector to Rotation
+    //   rotated_bvec = Rot * precomputed_bearing_vectors_.at(idx);
+    //   project_EquirectangularProjection(rotated_bvec, pm);
+    //   const double fh = computePredictedConstrastOfEvent(pm, pm_prev);
+    //   Jac.at<double>(0, j) = (fh - fx) / h; // forward finite difference: ( f(x+h)-f(x) ) / h
+    // }
   }
-  return fx;
 }
 
 }
