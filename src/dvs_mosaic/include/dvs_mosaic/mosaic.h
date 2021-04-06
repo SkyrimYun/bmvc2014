@@ -18,7 +18,6 @@
 #include <image_geometry/pinhole_camera_model.h>
 
 #include <thread>
-#include <atomic>
 #include <mutex>
 #include <condition_variable>
 

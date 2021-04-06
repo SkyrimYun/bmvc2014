@@ -1,4 +1,5 @@
 #include <dvs_mosaic/image_util.h>
+#include <fstream>
 
 namespace image_util
 {

@@ -140,6 +140,7 @@ void Mosaic::reconstuctMosaic()
     poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
     cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), 1);
     reconstruct_.notify_one();
+    
   }
 }
 

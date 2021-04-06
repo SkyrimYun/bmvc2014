@@ -16,8 +16,7 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
   const int ic = pm.x, ir = pm.y; // integer position
   if (1 <= ir && ir < mosaic_height_ - 2 && 1 <= ic && ic < mosaic_width_ - 2)
   {
-    // "Nearest neighbor" interpolation
-    //val = mosaic_img_.at<float>(ir, ic);
+    
 
     // Bilinear interpolation
     double dx = pm.x - ic;
@@ -26,6 +25,9 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
     {
     case 0:
     {
+      // "Nearest neighbor" interpolation
+      //val = mosaic_img_.at<float>(ir, ic);
+
       val += mosaic_img_.at<float>(ir, ic) * (1 - dx) * (1 - dy);
       val += mosaic_img_.at<float>(ir + 1, ic) * (1 - dx) * dy;
       val += mosaic_img_.at<float>(ir, ic + 1) * dx * (1 - dy);
@@ -42,10 +44,10 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
     }
     case 2:
     {
-      val += grad_map_.at<cv::Vec2f>(ir, ic)[0] * (1 - dx) * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[0] * (1 - dx) * dy;
-      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[0] * dx * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[0] * dx * dy;
+      val += grad_map_.at<cv::Vec2f>(ir, ic)[1] * (1 - dx) * (1 - dy);
+      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[1] * (1 - dx) * dy;
+      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[1] * dx * (1 - dy);
+      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[1] * dx * dy;
       break;
     }
     default:
@@ -75,22 +77,22 @@ double Mosaic::computePredictedConstrastOfEvent(
   // Compute the prediction of C_th
   const double predicted_contrast = (brightnessM_pm - brightnessM_pm_prev);
 
-  // if (packet_number == 100)
-  // {
-  //   static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
-  //   static int count4 = 0;
-  //   ofs << "###########################################" << std::endl;
-  //   ofs << "packet number: " << packet_number << std::endl;
-  //   ofs << count4++ << std::endl;
-  //   ofs << "pm: " << std::endl;
-  //   ofs << pm << std::endl;
-  //   ofs << "pm previous:" << std::endl;
-  //   ofs << pm_prev << std::endl;
-  //   ofs << "brightness pm: " << brightnessM_pm << std::endl;
-  //   ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
-  //   if (count4 == 500)
-  //     ofs.close();
-  // }
+  if (brightnessM_pm==0.0&& packet_number>20)
+  {
+    static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
+    static int count4 = 0;
+    ofs << "###########################################" << std::endl;
+    ofs << "packet number: " << packet_number << std::endl;
+    ofs << count4++ << std::endl;
+    ofs << "pm: " << std::endl;
+    ofs << pm << std::endl;
+    ofs << "pm previous:" << std::endl;
+    ofs << pm_prev << std::endl;
+    ofs << "brightness pm: " << brightnessM_pm << std::endl;
+    ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
+    if (count4 == 5000)
+      ofs.close();
+  }
 
   VLOG(2) << "predicted_contrast = " << predicted_contrast;
   return predicted_contrast;
