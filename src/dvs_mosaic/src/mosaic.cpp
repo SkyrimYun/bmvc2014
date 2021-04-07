@@ -63,6 +63,33 @@ Mosaic::Mosaic(ros::NodeHandle & nh, ros::NodeHandle nh_private)
   poses_.clear();
   loadPoses();
 
+  // Load mosaic image from the result of the mapping part
+  FILE *pFile;
+  pFile = fopen("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_image.bin", "rb");
+  // read image size from file
+  int sizeImg[2];
+  size_t res;
+  res = fread(sizeImg, 2, sizeof(int), pFile);
+  CHECK_EQ(mosaic_size_.width, sizeImg[0]) << "Mosaic sizes differ";
+  CHECK_EQ(mosaic_size_.height, sizeImg[1]) << "Mosaic sizes differ";
+  // read image data from file
+  mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
+  res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
+  fclose(pFile);
+  // cv::FileStorage fr1("/home/yunfan/work_spaces/EventVision/exe8/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+  // fr1["mosaic map"] >> mosaic_img_;
+
+  // Compute derivate of the map
+  cv::Mat grad_map_x, grad_map_y;
+  cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
+  cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
+  cv::filter2D(mosaic_img_, grad_map_y, -1, kernel.t());
+  VLOG(1) << "gradient kernel: " << kernel;
+  std::vector<cv::Mat> channels;
+  channels.emplace_back(grad_map_x);
+  channels.emplace_back(grad_map_y);
+  cv::merge(channels, grad_map_);
+
   // Observation / Measurement function
   var_process_noise_ = 1e-3;
   C_th_ = 0.45; // dataset
@@ -154,7 +181,7 @@ void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     rotationAt(time_packet_, Rot_gt);
 
     // initilize rotation vector with ground truth
-    if(packet_number<100)
+    if(packet_number<100000)
       cv::Rodrigues(Rot_gt, rot_vec_);
 
 

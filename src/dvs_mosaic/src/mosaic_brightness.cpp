@@ -42,10 +42,10 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
     }
     case 2:
     {
-      val += grad_map_.at<cv::Vec2f>(ir, ic)[0] * (1 - dx) * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[0] * (1 - dx) * dy;
-      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[0] * dx * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[0] * dx * dy;
+      val += grad_map_.at<cv::Vec2f>(ir, ic)[1] * (1 - dx) * (1 - dy);
+      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[1] * (1 - dx) * dy;
+      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[1] * dx * (1 - dy);
+      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[1] * dx * dy;
       break;
     }
     default:
@@ -54,7 +54,7 @@ double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
   }
   else
   {
-    LOG(FATAL) << mode << "boundary out range [" << ic << ", " << ir << "]";
+    //LOG(FATAL) << mode << "boundary out range [" << ic << ", " << ir << "]";
   }
   return val;
 }
