@@ -102,29 +102,5 @@ void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot
   grad_map_.at<cv::Vec2f>(pm) = cv::Vec2f(gm(0, 0), gm(1, 0));
   grad_map_covar_.at<cv::Vec3f>(pm) = cv::Vec3f(Pg(0, 0), Pg(0, 1), Pg(1, 1));
 
-  // Visualization
-  // if (visualize)
-  // {
-  //   // Visualization
-  //   // Get map point corresponding to current event and ground truth rotation
-  //   cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
-  //   cv::Point3d rotated_bvec_est = Rot * precomputed_bearing_vectors_.at(idx);
-
-  //   cv::Point2f pm_gt;
-  //   cv::Point2f pm_est;
-
-  //   project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
-  //   project_EquirectangularProjection(rotated_bvec_est, pm_est);
-  //   const int icg = pm_gt.x, irg = pm_gt.y; // integer position
-  //   if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
-  //   {
-  //     cv::circle(mosaic_img_vis_, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
-  //   }
-  //   const int ice = pm_est.x, ire = pm_est.y; // integer position
-  //   if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
-  //   {
-  //     cv::circle(mosaic_img_vis_, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
-  //   }
-  // }
 }
 }

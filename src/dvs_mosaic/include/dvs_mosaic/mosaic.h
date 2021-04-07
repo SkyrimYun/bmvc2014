@@ -65,15 +65,15 @@ private:
 
   // Measurement function
   bool measure_contrast_;
-  float var_R_mapping;
-  float var_R_tracking;
-  float C_th_;
+  double var_R_mapping;
+  double var_R_tracking;
+  double C_th_;
 
   const bool visualize = true;
   const bool extra_log_debugging = true;
 
   // Mapping / mosaicing
-  int num_events_map_update_;
+  int num_packet_reconstrct_mosaic_;
   int idx_first_ev_map_;  // index of first event of processing window
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
   std::vector<cv::Matx33d> map_of_last_rotations_;
@@ -84,13 +84,13 @@ private:
   cv::Matx33d Rot_gt;
 
   // packet
-  int packet_number;
+  unsigned int packet_number = 0;
   cv::Matx33d Rot_packet;
   cv::Point2f pm_packet_min, pm_packet_max;
   int skip_count;
 
   // Tracking
-  int num_events_pose_update_ = 500;
+  int num_events_update_;
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
