@@ -18,12 +18,10 @@
 #include <image_geometry/pinhole_camera_model.h>
 
 
-
 namespace dvs_mosaic
 {
 
 using Transformation = kindr::minimal::QuatTransformation;
-//using Transformation = kindr::minimal::RotationQuaternion;
 
 class Mosaic {
 public:
@@ -48,6 +46,8 @@ private:
   void publishMap();
   void publishPose();
   ros::Time time_packet_;
+  image_transport::Publisher pose_cop_pub_;
+
 
   // Sliding window of events
   std::deque<dvs_msgs::Event> events_;
@@ -64,38 +64,40 @@ private:
   float fx_, fy_; // speed-up equiareal projection
 
   // Measurement function
-  double var_R_mapping;
-  double var_R_tracking;
-  double C_th_;
+  bool measure_contrast_;
+  float var_R_mapping;
+  float var_R_tracking;
+  float C_th_;
 
-  // reference ground truth value
-  cv::Matx33d Rot_gt;
+  const bool visualize = true;
+  const bool extra_log_debugging = true;
 
   // Mapping / mosaicing
-  int num_packet_reconstrct_mosaic_;
+  int num_events_map_update_;
+  int idx_first_ev_map_;  // index of first event of processing window
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
   std::vector<cv::Matx33d> map_of_last_rotations_;
-  cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_vis_;
-  std::map<ros::Time, Transformation> poses_;
+  cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_recons_, pano_ev;
+  std::map<ros::Time, Transformation> poses_, poses_est_;
   void loadPoses();
 
+  cv::Matx33d Rot_gt;
 
-  // Tracking 
-  int num_events_update_;
-  std::map<ros::Time, Transformation> poses_est_;
+  // packet
+  int packet_number;
+  cv::Matx33d Rot_packet;
+  cv::Point2f pm_packet_min, pm_packet_max;
+  int skip_count;
+
+  // Tracking
+  int num_events_pose_update_ = 500;
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
 
-  // Debugging
-  const bool visualize = true;
-  const bool extra_log_debugging = true;
-  unsigned int packet_number = 0;
-
-  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
-  bool rotationAt(const ros::Time &t_query, cv::Matx33d &Rot_interp);
-  //void project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic);
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
+  bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);
+  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
 
   // Precomputed bearing vectors for each camera pixel
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
@@ -112,11 +114,11 @@ private:
       const cv::Point2f &pm,
       const cv::Point2f &pm_prev);
 
-  double computePredictedConstrastOfEventAndDeriv(
-      const dvs_msgs::Event &ev,
-      const cv::Matx33d &Rot_prev,
-      cv::Mat &Jac,
-      bool is_analytic);
+  void computeDeriv(
+      const cv::Point2f pm,
+      const cv::Mat dpm_d3d,
+      const cv::Point3d rotated_bvec,
+      cv::Mat &Jac);
 };
 
 } // namespace
