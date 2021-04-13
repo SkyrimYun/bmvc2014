@@ -26,6 +26,7 @@ namespace dvs_mosaic
     nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
     nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
+    nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
 
     // num_packet_reconstrct_mosaic_ = 100;
     // num_events_update_ = 1000;
@@ -54,6 +55,8 @@ namespace dvs_mosaic
     const cv::Size sensor_resolution = dvs_cam_.fullResolution();
     sensor_width_ = sensor_resolution.width;
     sensor_height_ = sensor_resolution.height;
+    sensor_bottom_right = sensor_width_ - 1;
+    sensor_upper_left = sensor_width_ * (sensor_height_ - 1);
     precomputeBearingVectors();
 
     // Mosaic size (in pixels)
@@ -288,19 +291,7 @@ namespace dvs_mosaic
 
       publishMap();
 
-      // calculate current frame points
-      cv::Rodrigues(rot_vec_, Rot_packet_);
-      cv::Point3d min_bvec = Rot_packet_ * precomputed_bearing_vectors_.front();
-      cv::Point3d max_bvec = Rot_packet_ * precomputed_bearing_vectors_.back();
-      project_EquirectangularProjection(min_bvec, pm_packet_min_);
-      project_EquirectangularProjection(max_bvec, pm_packet_max_);
-      if (pm_packet_min_.x > pm_packet_max_.x)
-      {
-        pm_packet_max_ = cv::Point2f(mosaic_width_, mosaic_height_);
-        pm_packet_min_ = cv::Point2f(0, 0);
-      }
-      //VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
-      VLOG(1) << "skip count: " << skip_count;
+      calculatePacketPoly();
 
       // Debugging
       if (extra_log_debugging)

@@ -57,6 +57,7 @@ private:
 
   // Camera
   int sensor_width_, sensor_height_;
+  int sensor_bottom_right, sensor_upper_left;
   image_geometry::PinholeCameraModel dvs_cam_;
   cv::Mat time_map_;
 
@@ -89,8 +90,6 @@ private:
 
   // packet
   unsigned int packet_number = 0;
-  cv::Matx33d Rot_packet_;
-  cv::Point2f pm_packet_min_, pm_packet_max_;
   int skip_count;
   int init_packet_num_;
 
@@ -99,6 +98,8 @@ private:
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
+  double tracking_area_percent_;
+  std::vector<cv::Point> tracking_polygon_;
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
   bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);
@@ -108,6 +109,7 @@ private:
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
   void precomputeBearingVectors();
 
+  void calculatePacketPoly();
   void processEventForTrack(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
 
   const int get_mosaic_map = 0;

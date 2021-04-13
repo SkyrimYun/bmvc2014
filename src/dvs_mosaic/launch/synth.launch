@@ -12,6 +12,8 @@
     <param name="var_R_mapping_" value="1e4"/>
     <param name="init_packet_num_" value="300"/>
     <param name="gaussian_blur_sigma_" value="2"/>
+    <param name="tracking_area_percent_" value="0.75"/>
+
 
 
 

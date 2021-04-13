@@ -34,11 +34,9 @@ namespace dvs_mosaic
             project_EquirectangularProjection(rotated_bvec_est, pm_est);
             const int icg = pm_gt.x, irg = pm_gt.y; // integer position
 
-            if (0 <= pm_packet_max_.y && pm_packet_max_.y < mosaic_height_ && 0 <= pm_packet_max_.x && pm_packet_max_.x < mosaic_width_ &&
-                0 <= pm_packet_min_.y && pm_packet_min_.y < mosaic_height_ && 0 <= pm_packet_min_.x && pm_packet_min_.x < mosaic_width_)
-            {
-                cv::rectangle(pano_ev, pm_packet_max_, pm_packet_min_, cv::Scalar(255, 0, 0));
-            }
+            // draw ROI polygon
+            cv::polylines(pano_ev, tracking_polygon_, true, cv::Scalar{255, 0, 0}, 2);
+
             if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
             {
                 cv::circle(pano_ev, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
@@ -59,12 +57,14 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-        if (pm.x > pm_packet_max_.x || pm.y > pm_packet_max_.y || pm.x < pm_packet_min_.x || pm.y < pm_packet_min_.y)
+        if(cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            //cv::circle(pano_ev, cv::Point(pm), 5, cv::Scalar(255, 0, 0));
             skip_count++;
             return;
         }
+       
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
 
@@ -103,5 +103,43 @@ namespace dvs_mosaic
         }
 
        
+    }
+
+    void Mosaic::calculatePacketPoly()
+    {
+        cv::Matx33d Rot_packet;
+        cv::Point2f pm_packet_bl, pm_packet_ur, pm_packet_br, pm_packet_ul;
+        cv::Rodrigues(rot_vec_, Rot_packet);
+        cv::Point3d bl_bvec = Rot_packet * precomputed_bearing_vectors_.front();
+        cv::Point3d br_bvec = Rot_packet * precomputed_bearing_vectors_[sensor_bottom_right];
+        cv::Point3d ul_bvec = Rot_packet * precomputed_bearing_vectors_[sensor_upper_left];
+        cv::Point3d ur_bvec = Rot_packet * precomputed_bearing_vectors_.back();
+        project_EquirectangularProjection(bl_bvec, pm_packet_bl);
+        project_EquirectangularProjection(br_bvec, pm_packet_br);
+        project_EquirectangularProjection(ul_bvec, pm_packet_ul);
+        project_EquirectangularProjection(ur_bvec, pm_packet_ur);
+        if (pm_packet_bl.x > pm_packet_ur.x)
+        {
+            pm_packet_ur = cv::Point2f(mosaic_width_, mosaic_height_);
+            pm_packet_ul = cv::Point2f(0, mosaic_height_);
+            pm_packet_br = cv::Point2f(mosaic_width_, 0);
+            pm_packet_bl = cv::Point2f(0, 0);
+        }        
+        else
+        {
+            cv::Point2f cent = (pm_packet_ur + pm_packet_bl) / 2;
+            pm_packet_ur -= ((pm_packet_ur - cent) * (1 - tracking_area_percent_));
+            pm_packet_ul -= ((pm_packet_ul - cent) * (1 - tracking_area_percent_));
+            pm_packet_br -= ((pm_packet_br - cent) * (1 - tracking_area_percent_));
+            pm_packet_bl -= ((pm_packet_bl - cent) * (1 - tracking_area_percent_));
+        }
+        // ROI polygon
+        tracking_polygon_.clear();
+        tracking_polygon_.push_back(cv::Point2i(pm_packet_bl));
+        tracking_polygon_.push_back(cv::Point2i(pm_packet_br));
+        tracking_polygon_.push_back(cv::Point2i(pm_packet_ur));
+        tracking_polygon_.push_back(cv::Point2i(pm_packet_ul));
+        //VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
+        VLOG(1) << "skip count: " << skip_count;
     }
 }
