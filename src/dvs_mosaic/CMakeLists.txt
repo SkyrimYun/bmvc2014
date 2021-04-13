@@ -7,6 +7,8 @@ catkin_simple(ALL_DEPS_REQUIRED)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
 find_package(OpenCV REQUIRED)
+find_package(matplotlib_cpp REQUIRED)
+
 
 # Make the executable
 cs_add_executable(${PROJECT_NAME}
@@ -29,6 +31,13 @@ target_link_libraries(${PROJECT_NAME}
    ${OpenCV_LIBRARIES}
    fftw3 fftw3_threads
 )
+
+find_package(PythonLibs REQUIRED)
+include_directories(${PYTHON_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+
+
+target_include_directories(${PROJECT_NAME} PUBLIC ${matplotlib_cpp_INCLUDE_DIR})
 
 cs_install()
 cs_export()

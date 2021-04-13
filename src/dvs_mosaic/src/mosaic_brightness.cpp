@@ -1,5 +1,6 @@
 #include <dvs_mosaic/mosaic.h>
 #include <glog/logging.h>
+#include <fstream>
 
 
 namespace dvs_mosaic
@@ -74,9 +75,29 @@ double Mosaic::computePredictedConstrastOfEvent(
   // Compute the prediction of C_th
   const double predicted_contrast = (brightnessM_pm - brightnessM_pm_prev);
 
- 
+  // if (abs(brightnessM_pm)<0.1||abs(brightnessM_pm_prev)<0.1)
+  // {
+  //   static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
+  //   static int count4 = 0;
+  //   ofs << "###########################################" << std::endl;
+  //   ofs << "packet number: " << packet_number << std::endl;
+  //   ofs << count4++ << std::endl;
+  //   ofs << "pm: " << std::endl;
+  //   ofs << pm << std::endl;
+  //   ofs << "pm previous:" << std::endl;
+  //   ofs << pm_prev << std::endl;
+  //   ofs << "brightness pm: " << brightnessM_pm << std::endl;
+  //   ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
+  //   if (count4 == 50000)
+  //     ofs.close();
+  // }
+
   VLOG(2) << "predicted_contrast = " << predicted_contrast;
-  return predicted_contrast;
+
+  if (abs(brightnessM_pm) < 0.15 || abs(brightnessM_pm_prev) < 0.15)
+    return dNaN;
+  else
+    return predicted_contrast;
 }
 
 /**

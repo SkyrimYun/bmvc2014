@@ -17,6 +17,8 @@
 #include <kindr/minimal/quat-transformation.h>
 #include <image_geometry/pinhole_camera_model.h>
 
+#include <matplotlibcpp.h>
+
 
 namespace dvs_mosaic
 {
@@ -79,6 +81,7 @@ private:
   std::vector<cv::Matx33d> map_of_last_rotations_;
   cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_recons_, pano_ev;
   std::map<ros::Time, Transformation> poses_, poses_est_;
+  std::vector<double> pose_covar_est_;
   void loadPoses();
 
   cv::Matx33d Rot_gt;

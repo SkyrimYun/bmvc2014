@@ -74,7 +74,9 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "any": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "condition_variable": "cpp",
+        "mutex": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

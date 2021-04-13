@@ -19,8 +19,8 @@ namespace dvs_mosaic
       : nh_(nh), pnh_("~")
   {
 
-    num_packet_reconstrct_mosaic_ = 20;
-    num_events_update_ = 500;
+    num_packet_reconstrct_mosaic_ = 100;
+    num_events_update_ = 1000;
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -36,7 +36,6 @@ namespace dvs_mosaic
     pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("mosaic_pose", 1);
     pose_cop_pub_ = it_.advertise("pose_compare", 1);
 
-   
     // Event processing in batches / packets
     time_packet_ = ros::Time(0);
 
@@ -61,12 +60,12 @@ namespace dvs_mosaic
     poses_.clear();
     loadPoses();
 
-   
+  
     // Observation / Measurement function
-    C_th_ = 0.45; // dataset
-    var_process_noise_ = 1e-3; // if input mosaic is from Ex7; use 3e-4 or 4e-4; if input mosaic is from matlab, use 1e-3
-    var_R_tracking = 0.17 * 0.17; // units [C_th]^2, (contrast)  
-    var_R_mapping = 1e4; // units [1/second]^2, (event rate)
+    C_th_ = 0.45;                 // dataset
+    var_process_noise_ = 1e-4;    // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
+    var_R_tracking = 0.17 * 0.17; // units [C_th]^2, (contrast)
+    var_R_mapping = 1e4;          // units [1/second]^2, (event rate)
 
     // Initialize tracker's state and covariance
     rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -82,6 +81,8 @@ namespace dvs_mosaic
     VLOG(1)
         << "Set initial pose: ";
     poses_est_.insert(std::pair<ros::Time, Transformation>(poses_.begin()->first, poses_.begin()->second));
+    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+
     // Print initial time and pose (the pose should be the identity)
     VLOG(1) << "--Estimated pose "
             << ". time = " << poses_est_.begin()->first;
@@ -102,10 +103,10 @@ namespace dvs_mosaic
     // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
     // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
     // fclose(pFile);
-    // // cv::FileStorage fr1("/home/yunfan/work_spaces/EventVision/exe8/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
-    // // fr1["mosaic map"] >> mosaic_img_;
+    // cv::FileStorage fr1("/home/yunfan/work_spaces/EventVision/exe8/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+    // fr1["mosaic map"] >> mosaic_img_;
 
-    // // Compute derivate of the map
+    // Compute derivate of the map
     // cv::Mat grad_map_x, grad_map_y;
     // cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
     // cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
@@ -116,7 +117,7 @@ namespace dvs_mosaic
     // channels.emplace_back(grad_map_y);
     // cv::merge(channels, grad_map_);
 
-    // // Load reconstructed image for visualization
+    // Load reconstructed image for visualization
     // cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
     // fr2["mosaic recons map"] >> mosaic_img_recons_;
   }
@@ -130,6 +131,56 @@ namespace dvs_mosaic
     mosaic_tracecov_pub_.shutdown();
     pose_pub_.shutdown();
     pose_cop_pub_.shutdown();
+
+    std::vector<double> times_gt;
+    std::vector<double> a1_gt;
+    std::vector<double> a2_gt;
+    std::vector<double> a3_gt;
+    for (auto &p : poses_)
+    {
+      times_gt.push_back(p.first.toSec());
+      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+      a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+      a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+      a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    }
+
+    matplotlibcpp::figure();
+    matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
+    matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
+    matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
+
+    std::vector<double> times_est;
+    std::vector<double> a1_est;
+    std::vector<double> a2_est;
+    std::vector<double> a3_est;
+    for (auto &p : poses_est_)
+    {
+      times_est.push_back(p.first.toSec());
+      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+      a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+      a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+      a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    }
+
+    matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
+    matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
+    matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
+
+    matplotlibcpp::xlabel("time");
+    matplotlibcpp::ylabel("angle [deg]");
+    matplotlibcpp::title("wrapped angles vs time");
+    matplotlibcpp::legend();
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_23.png");
+    matplotlibcpp::show();
+
+    matplotlibcpp::figure();
+    matplotlibcpp::plot(times_est, pose_covar_est_, "b");
+    matplotlibcpp::xlabel("time");
+    matplotlibcpp::ylabel("[deg]");
+    matplotlibcpp::title("sqrt(Trace of the state covariance)");
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_23.png");
+    matplotlibcpp::show();
   }
 
   /**
@@ -137,7 +188,6 @@ namespace dvs_mosaic
   */
   void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr &msg)
   {
-    
 
     // Append events of current message to the queue
     for (const dvs_msgs::Event &ev : msg->events)
@@ -181,11 +231,20 @@ namespace dvs_mosaic
 
       // Compute ground truth rotation matrix (shared by all events in the batch)
       rotationAt(time_packet_, Rot_gt); // Ground truth pose
-      
-      // initilize rotation vector with ground truth
-      if(packet_number<300)
-        cv::Rodrigues(Rot_gt, rot_vec_);
+      cv::Matx33d Rot_interp;
+      cv::Rodrigues(rot_vec_, Rot_interp);
+      Eigen::Matrix3d R_eigen;
+      for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+        {
+          R_eigen(i, j) = Rot_interp(i, j);
+        }
+      poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), Eigen::Quaterniond(R_eigen))});
+      pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
+      // initilize rotation vector with ground truth
+      if (packet_number < 300)
+        cv::Rodrigues(Rot_gt, rot_vec_);
 
       // EKF propagation equations for state and covariance
       int packet_events_count = 0;
@@ -205,17 +264,18 @@ namespace dvs_mosaic
           continue;
         }
 
-        processEventForTrack(ev, Rot_prev);
+        if (packet_number > 300)
+          processEventForTrack(ev, Rot_prev);
         processEventForMap(ev, Rot_prev);
 
         ++packet_events_count;
-
       }
 
       if (packet_number % num_packet_reconstrct_mosaic_ == 0)
       {
         VLOG(1) << "---- Reconstruct Mosaic ----";
         poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
+        cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), 1);
       }
 
       publishMap();
@@ -226,8 +286,13 @@ namespace dvs_mosaic
       cv::Point3d max_bvec = Rot_packet * precomputed_bearing_vectors_.back();
       project_EquirectangularProjection(min_bvec, pm_packet_min);
       project_EquirectangularProjection(max_bvec, pm_packet_max);
+      if (pm_packet_min.x > pm_packet_max.x)
+      {
+        pm_packet_max = cv::Point2f(mosaic_width_, mosaic_height_);
+        pm_packet_min = cv::Point2f(0, 0);
+      }
       //VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
-      //VLOG(1) << "skip count: " << skip_count;
+      VLOG(1) << "skip count: " << skip_count;
 
       // Debugging
       if (extra_log_debugging)
@@ -263,7 +328,6 @@ namespace dvs_mosaic
       //   if (pose_cop_pub_.getNumSubscribers() > 0)
       //     pose_cop_pub_.publish(cv_image.toImageMsg());
       // }
-     
 
       // Slide
       events_.erase(events_.begin(), events_.begin() + num_events_update_);

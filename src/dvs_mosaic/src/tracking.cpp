@@ -18,6 +18,38 @@ namespace dvs_mosaic
 
         // Get map point corresponding to current event and given rotation
         const int idx = ev.y * sensor_width_ + ev.x;
+
+        // Visualization
+        if (visualize)
+        {
+            // Visualization
+            // Get map point corresponding to current event and ground truth rotation
+            cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
+            cv::Point3d rotated_bvec_est = Rot_pred * precomputed_bearing_vectors_.at(idx);
+
+            cv::Point2f pm_gt;
+            cv::Point2f pm_est;
+
+            project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
+            project_EquirectangularProjection(rotated_bvec_est, pm_est);
+            const int icg = pm_gt.x, irg = pm_gt.y; // integer position
+
+            if (0 <= pm_packet_max.y && pm_packet_max.y < mosaic_height_ && 0 <= pm_packet_max.x && pm_packet_max.x < mosaic_width_ &&
+                0 <= pm_packet_min.y && pm_packet_min.y < mosaic_height_ && 0 <= pm_packet_min.x && pm_packet_min.x < mosaic_width_)
+            {
+                cv::rectangle(pano_ev, pm_packet_max, pm_packet_min, cv::Scalar(255, 0, 0));
+            }
+            if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
+            {
+                cv::circle(pano_ev, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
+            }
+            const int ice = pm_est.x, ire = pm_est.y; // integer position
+            if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
+            {
+                cv::circle(pano_ev, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
+            }
+        }
+
         cv::Point3d rotated_bvec = Rot_pred * precomputed_bearing_vectors_.at(idx);
         cv::Point2f pm;
         cv::Mat dpm_d3d = project_EquirectangularProjection(rotated_bvec, pm, true);
@@ -27,14 +59,20 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-        // if (pm_prev.x > pm_packet_max.x || pm_prev.y > pm_packet_max.y || pm_prev.x < pm_packet_min.x || pm_prev.y < pm_packet_min.y)
-        // {
-        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-        //     skip_count++;
-        //     return;
-        // }
+        if (pm.x > pm_packet_max.x || pm.y > pm_packet_max.y || pm.x < pm_packet_min.x || pm.y < pm_packet_min.y)
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            skip_count++;
+            return;
+        }
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
+
+        if(std::isnan(predicted_contrast))
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            return;
+        }
 
         cv::Mat deriv_pred_contrast;
         computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);
@@ -64,29 +102,6 @@ namespace dvs_mosaic
                 ofs.close();
         }
 
-        // Visualization
-        if (visualize)
-        {
-            // Visualization
-            // Get map point corresponding to current event and ground truth rotation
-            cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
-            cv::Point3d rotated_bvec_est = Rot_pred * precomputed_bearing_vectors_.at(idx);
-
-            cv::Point2f pm_gt;
-            cv::Point2f pm_est;
-
-            project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
-            project_EquirectangularProjection(rotated_bvec_est, pm_est);
-            const int icg = pm_gt.x, irg = pm_gt.y; // integer position
-            if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
-            {
-                cv::circle(pano_ev, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
-            }
-            const int ice = pm_est.x, ire = pm_est.y; // integer position
-            if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
-            {
-                cv::circle(pano_ev, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
-            }
-        }
+       
     }
 }
