@@ -18,9 +18,17 @@ namespace dvs_mosaic
   Mosaic::Mosaic(ros::NodeHandle &nh, ros::NodeHandle nh_private)
       : nh_(nh), pnh_("~")
   {
+    nh_private.param<int>("num_events_update_", num_events_update_, 1000);
+    nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
+    nh_private.param<int>("mosaic_height_", mosaic_height_, 512);
+    nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4);
+    nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.17 * 0.17);
+    nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
+    nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
+    nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
 
-    num_packet_reconstrct_mosaic_ = 100;
-    num_events_update_ = 1000;
+    // num_packet_reconstrct_mosaic_ = 100;
+    // num_events_update_ = 1000;
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -49,7 +57,7 @@ namespace dvs_mosaic
     precomputeBearingVectors();
 
     // Mosaic size (in pixels)
-    mosaic_height_ = 512;
+    //mosaic_height_ = 512;
     mosaic_width_ = 2 * mosaic_height_;
     mosaic_size_ = cv::Size(mosaic_width_, mosaic_height_);
     fx_ = static_cast<float>(mosaic_width_) / (2. * M_PI);
@@ -63,9 +71,9 @@ namespace dvs_mosaic
   
     // Observation / Measurement function
     C_th_ = 0.45;                 // dataset
-    var_process_noise_ = 1e-4;    // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
-    var_R_tracking = 0.17 * 0.17; // units [C_th]^2, (contrast)
-    var_R_mapping = 1e4;          // units [1/second]^2, (event rate)
+    // var_process_noise_ = 1e-4;    // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
+    // var_R_tracking_ = 0.17 * 0.17; // units [C_th]^2, (contrast)
+    // var_R_mapping_ = 1e4;          // units [1/second]^2, (event rate)
 
     // Initialize tracker's state and covariance
     rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -243,7 +251,7 @@ namespace dvs_mosaic
       pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
       // initilize rotation vector with ground truth
-      if (packet_number < 300)
+      if (packet_number < init_packet_num_)
         cv::Rodrigues(Rot_gt, rot_vec_);
 
       // EKF propagation equations for state and covariance
@@ -264,7 +272,7 @@ namespace dvs_mosaic
           continue;
         }
 
-        if (packet_number > 300)
+        if (packet_number > init_packet_num_)
           processEventForTrack(ev, Rot_prev);
         processEventForMap(ev, Rot_prev);
 
@@ -275,21 +283,21 @@ namespace dvs_mosaic
       {
         VLOG(1) << "---- Reconstruct Mosaic ----";
         poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-        cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), 1);
+        cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
       }
 
       publishMap();
 
       // calculate current frame points
-      cv::Rodrigues(rot_vec_, Rot_packet);
-      cv::Point3d min_bvec = Rot_packet * precomputed_bearing_vectors_.front();
-      cv::Point3d max_bvec = Rot_packet * precomputed_bearing_vectors_.back();
-      project_EquirectangularProjection(min_bvec, pm_packet_min);
-      project_EquirectangularProjection(max_bvec, pm_packet_max);
-      if (pm_packet_min.x > pm_packet_max.x)
+      cv::Rodrigues(rot_vec_, Rot_packet_);
+      cv::Point3d min_bvec = Rot_packet_ * precomputed_bearing_vectors_.front();
+      cv::Point3d max_bvec = Rot_packet_ * precomputed_bearing_vectors_.back();
+      project_EquirectangularProjection(min_bvec, pm_packet_min_);
+      project_EquirectangularProjection(max_bvec, pm_packet_max_);
+      if (pm_packet_min_.x > pm_packet_max_.x)
       {
-        pm_packet_max = cv::Point2f(mosaic_width_, mosaic_height_);
-        pm_packet_min = cv::Point2f(0, 0);
+        pm_packet_max_ = cv::Point2f(mosaic_width_, mosaic_height_);
+        pm_packet_min_ = cv::Point2f(0, 0);
       }
       //VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
       VLOG(1) << "skip count: " << skip_count;

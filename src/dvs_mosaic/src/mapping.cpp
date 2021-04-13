@@ -62,7 +62,7 @@ void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot
     // Compute innovation, measurement matrix and Kalman gain
   float nu_innovation = 1 / dt_ev - (gm(0,0) * flow_vec.x + gm(1, 0) * flow_vec.y) / thres;
   cv::Matx12f dh_dg(flow_vec.x / thres, flow_vec.y / thres);
-  float s = (dh_dg * Pg * dh_dg.t())(0,0) + var_R_mapping;
+  float s = (dh_dg * Pg * dh_dg.t())(0,0) + var_R_mapping_;
   cv::Matx21f Kalman_gain = (Pg * dh_dg.t());
   Kalman_gain(0, 0) = Kalman_gain(0, 0) / s;
   Kalman_gain(1, 0) = Kalman_gain(1, 0) / s;

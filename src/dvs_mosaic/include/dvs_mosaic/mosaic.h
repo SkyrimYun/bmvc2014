@@ -67,8 +67,8 @@ private:
 
   // Measurement function
   bool measure_contrast_;
-  double var_R_mapping;
-  double var_R_tracking;
+  double var_R_mapping_;
+  double var_R_tracking_;
   double C_th_;
 
   const bool visualize = true;
@@ -83,14 +83,16 @@ private:
   std::map<ros::Time, Transformation> poses_, poses_est_;
   std::vector<double> pose_covar_est_;
   void loadPoses();
+  int gaussian_blur_sigma_;
 
   cv::Matx33d Rot_gt;
 
   // packet
   unsigned int packet_number = 0;
-  cv::Matx33d Rot_packet;
-  cv::Point2f pm_packet_min, pm_packet_max;
+  cv::Matx33d Rot_packet_;
+  cv::Point2f pm_packet_min_, pm_packet_max_;
   int skip_count;
+  int init_packet_num_;
 
   // Tracking
   int num_events_update_;

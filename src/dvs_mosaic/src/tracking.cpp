@@ -34,10 +34,10 @@ namespace dvs_mosaic
             project_EquirectangularProjection(rotated_bvec_est, pm_est);
             const int icg = pm_gt.x, irg = pm_gt.y; // integer position
 
-            if (0 <= pm_packet_max.y && pm_packet_max.y < mosaic_height_ && 0 <= pm_packet_max.x && pm_packet_max.x < mosaic_width_ &&
-                0 <= pm_packet_min.y && pm_packet_min.y < mosaic_height_ && 0 <= pm_packet_min.x && pm_packet_min.x < mosaic_width_)
+            if (0 <= pm_packet_max_.y && pm_packet_max_.y < mosaic_height_ && 0 <= pm_packet_max_.x && pm_packet_max_.x < mosaic_width_ &&
+                0 <= pm_packet_min_.y && pm_packet_min_.y < mosaic_height_ && 0 <= pm_packet_min_.x && pm_packet_min_.x < mosaic_width_)
             {
-                cv::rectangle(pano_ev, pm_packet_max, pm_packet_min, cv::Scalar(255, 0, 0));
+                cv::rectangle(pano_ev, pm_packet_max_, pm_packet_min_, cv::Scalar(255, 0, 0));
             }
             if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
             {
@@ -59,7 +59,7 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-        if (pm.x > pm_packet_max.x || pm.y > pm_packet_max.y || pm.x < pm_packet_min.x || pm.y < pm_packet_min.y)
+        if (pm.x > pm_packet_max_.x || pm.y > pm_packet_max_.y || pm.x < pm_packet_min_.x || pm.y < pm_packet_min_.y)
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
             skip_count++;
@@ -82,7 +82,7 @@ namespace dvs_mosaic
         double innovation = C_th_ - predicted_contrast;
         deriv_pred_contrast = (ev.polarity ? 1 : -1) * deriv_pred_contrast;
 
-        cv::Mat s = deriv_pred_contrast * covar_pred * deriv_pred_contrast.t() + var_R_tracking;
+        cv::Mat s = deriv_pred_contrast * covar_pred * deriv_pred_contrast.t() + var_R_tracking_;
         cv::Mat kalman_gain = (covar_pred * deriv_pred_contrast.t()) / s;
         rot_vec_ += kalman_gain * innovation;
         covar_rot_ = covar_pred - kalman_gain * s * kalman_gain.t();
