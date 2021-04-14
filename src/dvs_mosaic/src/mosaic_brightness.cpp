@@ -94,9 +94,9 @@ double Mosaic::computePredictedConstrastOfEvent(
 
   VLOG(2) << "predicted_contrast = " << predicted_contrast;
 
-  if (abs(brightnessM_pm) < 0.15 || abs(brightnessM_pm_prev) < 0.15)
-    return dNaN;
-  else
+  // if (abs(brightnessM_pm) < 0.15 || abs(brightnessM_pm_prev) < 0.15)
+  //   return dNaN;
+  // else
     return predicted_contrast;
 }
 

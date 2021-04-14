@@ -90,7 +90,8 @@ private:
 
   // packet
   unsigned int packet_number = 0;
-  int skip_count;
+  int skip_count_polygon_;
+  int skip_count_grad_;
   int init_packet_num_;
 
   // Tracking
@@ -99,6 +100,7 @@ private:
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
   double tracking_area_percent_;
+  double grad_thres_;
   std::vector<cv::Point> tracking_polygon_;
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);

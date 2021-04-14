@@ -20,16 +20,14 @@ namespace dvs_mosaic
   {
     nh_private.param<int>("num_events_update_", num_events_update_, 1000);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
-    nh_private.param<int>("mosaic_height_", mosaic_height_, 512);
-    nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4);
+    nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
+    nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4); // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.17 * 0.17);
     nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
     nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
-
-    // num_packet_reconstrct_mosaic_ = 100;
-    // num_events_update_ = 1000;
+    nh_private.param<double>("grad_thres_", grad_thres_, 1);
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -60,7 +58,6 @@ namespace dvs_mosaic
     precomputeBearingVectors();
 
     // Mosaic size (in pixels)
-    //mosaic_height_ = 512;
     mosaic_width_ = 2 * mosaic_height_;
     mosaic_size_ = cv::Size(mosaic_width_, mosaic_height_);
     fx_ = static_cast<float>(mosaic_width_) / (2. * M_PI);
@@ -74,9 +71,6 @@ namespace dvs_mosaic
   
     // Observation / Measurement function
     C_th_ = 0.45;                 // dataset
-    // var_process_noise_ = 1e-4;    // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
-    // var_R_tracking_ = 0.17 * 0.17; // units [C_th]^2, (contrast)
-    // var_R_mapping_ = 1e4;          // units [1/second]^2, (event rate)
 
     // Initialize tracker's state and covariance
     rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -259,7 +253,8 @@ namespace dvs_mosaic
 
       // EKF propagation equations for state and covariance
       int packet_events_count = 0;
-      skip_count = 0;
+      skip_count_polygon_ = 0;
+      skip_count_grad_ = 0;
       // Loop through the events
       for (const dvs_msgs::Event &ev : events_subset_)
       {
@@ -292,6 +287,9 @@ namespace dvs_mosaic
       publishMap();
 
       calculatePacketPoly();
+
+      VLOG(1) << "skip count gradient: " << skip_count_grad_;
+      VLOG(1) << "skip count polygon: " << skip_count_polygon_;
 
       // Debugging
       if (extra_log_debugging)

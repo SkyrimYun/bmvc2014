@@ -57,22 +57,29 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
+        cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
+        if ( abs(grad_vec[0] + grad_vec[1]) < grad_thres_ )
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            skip_count_grad_++;
+            return;
+        }
+
         if(cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
             //cv::circle(pano_ev, cv::Point(pm), 5, cv::Scalar(255, 0, 0));
-            skip_count++;
+            skip_count_polygon_++;
             return;
         }
-       
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
 
-        if(std::isnan(predicted_contrast))
-        {
-            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-            return;
-        }
+        // if(std::isnan(predicted_contrast))
+        // {
+        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+        //     return;
+        // }
 
         cv::Mat deriv_pred_contrast;
         computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);
@@ -140,6 +147,5 @@ namespace dvs_mosaic
         tracking_polygon_.push_back(cv::Point2i(pm_packet_ur));
         tracking_polygon_.push_back(cv::Point2i(pm_packet_ul));
         //VLOG(1) << "packet point: [" << pm_packet_min.x << ", " << pm_packet_min.y << "] -> [" << pm_packet_max.x << ", " << pm_packet_max.y << "]";
-        VLOG(1) << "skip count: " << skip_count;
     }
 }
