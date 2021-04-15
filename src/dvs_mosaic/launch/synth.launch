@@ -1,6 +1,6 @@
 <launch>
 
-  <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
+  <node pkg="rosbag" type="play" name="player" args="--pause -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
 
 
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
@@ -13,7 +13,7 @@
     <param name="init_packet_num_" value="300"/>
     <param name="gaussian_blur_sigma_" value="2"/>
     <param name="tracking_area_percent_" value="0.75"/>
-    <param name="grad_thres_" value="1.0"/>
+    <param name="grad_thres_" value="0.1"/>
 
 
 
