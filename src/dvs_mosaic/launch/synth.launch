@@ -6,7 +6,7 @@
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
     <param name="num_events_update_" value="1000"/>
     <param name="num_packet_reconstrct_mosaic_" value="100"/>
-    <param name="mosaic_height_" value="512"/>
+    <param name="mosaic_height_" value="1024"/>
     <param name="var_process_noise_" value="1e-4"/>
     <param name="var_R_tracking_" value="0.17 * 0.17"/>
     <param name="var_R_mapping_" value="1e4"/>

@@ -108,7 +108,7 @@ namespace dvs_mosaic
     // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
     // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
     // fclose(pFile);
-    cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+    cv::FileStorage fr1("/home/yunfan/work_spaces/EventVision/exe8/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
     fr1["mosaic map"] >> mosaic_img_;
 
     // Compute derivate of the map
