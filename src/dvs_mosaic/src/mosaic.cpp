@@ -157,55 +157,55 @@ namespace dvs_mosaic
     pose_pub_.shutdown();
     pose_cop_pub_.shutdown();
 
-    std::vector<double> times_gt;
-    std::vector<double> a1_gt;
-    std::vector<double> a2_gt;
-    std::vector<double> a3_gt;
-    for (auto &p : poses_)
-    {
-      times_gt.push_back(p.first.toSec());
-      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-      a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-      a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-      a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
-    }
+    // std::vector<double> times_gt;
+    // std::vector<double> a1_gt;
+    // std::vector<double> a2_gt;
+    // std::vector<double> a3_gt;
+    // for (auto &p : poses_)
+    // {
+    //   times_gt.push_back(p.first.toSec());
+    //   Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+    //   a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+    //   a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+    //   a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    // }
 
-    matplotlibcpp::figure();
-    matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
-    matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
-    matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
+    // matplotlibcpp::figure();
+    // matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
+    // matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
+    // matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
 
-    std::vector<double> times_est;
-    std::vector<double> a1_est;
-    std::vector<double> a2_est;
-    std::vector<double> a3_est;
-    for (auto &p : poses_est_)
-    {
-      times_est.push_back(p.first.toSec());
-      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-      a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-      a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-      a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
-    }
+    // std::vector<double> times_est;
+    // std::vector<double> a1_est;
+    // std::vector<double> a2_est;
+    // std::vector<double> a3_est;
+    // for (auto &p : poses_est_)
+    // {
+    //   times_est.push_back(p.first.toSec());
+    //   Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+    //   a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+    //   a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+    //   a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    // }
 
-    matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
-    matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
-    matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
+    // matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
+    // matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
+    // matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
 
-    matplotlibcpp::xlabel("time");
-    matplotlibcpp::ylabel("angle [deg]");
-    matplotlibcpp::title("wrapped angles vs time");
-    matplotlibcpp::legend();
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
-    matplotlibcpp::show();
+    // matplotlibcpp::xlabel("time");
+    // matplotlibcpp::ylabel("angle [deg]");
+    // matplotlibcpp::title("wrapped angles vs time");
+    // matplotlibcpp::legend();
+    // matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
+    // matplotlibcpp::show();
 
-    matplotlibcpp::figure();
-    matplotlibcpp::plot(times_est, pose_covar_est_, "b");
-    matplotlibcpp::xlabel("time");
-    matplotlibcpp::ylabel("[deg]");
-    matplotlibcpp::title("sqrt(Trace of the state covariance)");
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
-    matplotlibcpp::show();
+    // matplotlibcpp::figure();
+    // matplotlibcpp::plot(times_est, pose_covar_est_, "b");
+    // matplotlibcpp::xlabel("time");
+    // matplotlibcpp::ylabel("[deg]");
+    // matplotlibcpp::title("sqrt(Trace of the state covariance)");
+    // matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
+    // matplotlibcpp::show();
 
     // // save binary image
     // std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/mosaic.yml";
