@@ -58,14 +58,14 @@ namespace dvs_mosaic
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
         cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
-        if ( abs(grad_vec[0] + grad_vec[1]) < grad_thres_ )
+        if (use_grad_thres_ && abs(grad_vec[0] + grad_vec[1]) < grad_thres_ )
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
             skip_count_grad_++;
             return;
         }
 
-        if(!tracker_standalone_ && cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
+        if(use_polygon_thres_ && cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
             skip_count_polygon_++;

@@ -28,8 +28,12 @@ namespace dvs_mosaic
     nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
-    nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
+    nh_private.param<bool>("use_grad_thres_", use_grad_thres_, true);
     nh_private.param<double>("grad_thres_", grad_thres_, 1);
+    nh_private.param<bool>("use_polygon_thres_", use_polygon_thres_, true);
+    nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
+    nh_private.param<bool>("use_bright_thres_", use_bright_thres_, true);
+    nh_private.param<double>("bright_thres_", bright_thres_, 0.15);
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -97,8 +101,13 @@ namespace dvs_mosaic
     VLOG(1) << poses_est_.begin()->second;
     VLOG(1) << "Set initial pose... done!";
 
+    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "true" : "false");
+    VLOG(1) << "Apply Gradient Threshold?" << (use_grad_thres_ ? "true" : "false; Threshold: ") << grad_thres_;
+    VLOG(1) << "Apply Polygon Threshold?" << (use_polygon_thres_ ? "true" : "false; Tracking area (percent): ") << tracking_area_percent_;
+    VLOG(1) << "Apply Brightness Threshold?" << (use_bright_thres_ ? "true" : "false; Threshold: ") << bright_thres_;
+    VLOG(1) << "Apply Gaussian Blur to reconsturcted map?" << (use_gaussian_blur_ ? "true" : "false; sigma: ") << gaussian_blur_sigma_;
 
-    if(tracker_standalone_)
+    if (tracker_standalone_)
     {
       // Load mosaic image from the result of the mapping part
       // FILE *pFile;
@@ -315,7 +324,7 @@ namespace dvs_mosaic
 
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
-      VLOG(1) << "skip count polygon: " << skip_count_bright_;
+      VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
       // Debugging
       if (extra_log_debugging)
