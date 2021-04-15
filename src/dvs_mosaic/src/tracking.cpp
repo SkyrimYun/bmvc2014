@@ -65,21 +65,21 @@ namespace dvs_mosaic
             return;
         }
 
-        // if(cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
-        // {
-        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-        //     //cv::circle(pano_ev, cv::Point(pm), 5, cv::Scalar(255, 0, 0));
-        //     skip_count_polygon_++;
-        //     return;
-        // }
+        if(!tracker_standalone_ && cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            skip_count_polygon_++;
+            return;
+        }
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
 
-        // if(std::isnan(predicted_contrast))
-        // {
-        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-        //     return;
-        // }
+        if(std::isnan(predicted_contrast))
+        {
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            skip_count_bright_++;
+            return;
+        }
 
         cv::Mat deriv_pred_contrast;
         computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);

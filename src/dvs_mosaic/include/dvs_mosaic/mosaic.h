@@ -85,6 +85,7 @@ private:
   std::vector<double> pose_covar_est_;
   void loadPoses();
   int gaussian_blur_sigma_;
+  bool use_gaussian_blur_;
 
   cv::Matx33d Rot_gt;
 
@@ -92,6 +93,7 @@ private:
   unsigned int packet_number = 0;
   int skip_count_polygon_;
   int skip_count_grad_;
+  int skip_count_bright_;
   int init_packet_num_;
 
   // Tracking
@@ -102,6 +104,7 @@ private:
   double tracking_area_percent_;
   double grad_thres_;
   std::vector<cv::Point> tracking_polygon_;
+  bool tracker_standalone_;
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
   bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);
