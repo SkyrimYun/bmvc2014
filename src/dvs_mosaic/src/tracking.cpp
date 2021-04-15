@@ -57,30 +57,39 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-        cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
-        if ( abs(grad_vec[0] + grad_vec[1]) < grad_thres_ )
-        {
-            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-            skip_count_grad_++;
-            return;
-        }
+        // VLOG(1) << "11111111111111111111";
+        // VLOG(1) << rot_vec_;
+        // VLOG(1)
+        //     << idx;
+        // VLOG(1) << Rot_pred;
+        // VLOG(1) << rotated_bvec;
+        // VLOG(1) << pm;
+        // cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
+        // VLOG(1) << "#######################";
 
-        if(cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
-        {
-            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-            //cv::circle(pano_ev, cv::Point(pm), 5, cv::Scalar(255, 0, 0));
-            skip_count_polygon_++;
-            return;
-        }
+        // if ( abs(grad_vec[0] + grad_vec[1]) < grad_thres_ )
+        // {
+        //     VLOG(1) << "222222222222222222";
+        //     skip_count_grad_++;
+        //     return;
+        // }
+        // VLOG(1) << "33333333333333333333";
+        // if(cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
+        // {
+        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+        //     //cv::circle(pano_ev, cv::Point(pm), 5, cv::Scalar(255, 0, 0));
+        //     skip_count_polygon_++;
+        //     return;
+        // }
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
 
-        if(std::isnan(predicted_contrast))
-        {
-            skip_count_bright_++;
-            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-            return;
-        }
+        // if(std::isnan(predicted_contrast))
+        // {
+        //     skip_count_bright_++;
+        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+        //     return;
+        // }
 
         cv::Mat deriv_pred_contrast;
         computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);

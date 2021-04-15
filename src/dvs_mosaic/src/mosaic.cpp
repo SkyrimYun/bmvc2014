@@ -109,23 +109,23 @@ namespace dvs_mosaic
     // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
     // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
     // fclose(pFile);
-    // cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
-    // fr1["mosaic map"] >> mosaic_img_;
+    cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+    fr1["mosaic map"] >> mosaic_img_;
 
     // Compute derivate of the map
-    // cv::Mat grad_map_x, grad_map_y;
-    // cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
-    // cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
-    // cv::filter2D(mosaic_img_, grad_map_y, -1, kernel.t());
-    // VLOG(1) << "gradient kernel: " << kernel;
-    // std::vector<cv::Mat> channels;
-    // channels.emplace_back(grad_map_x);
-    // channels.emplace_back(grad_map_y);
-    // cv::merge(channels, grad_map_);
+    cv::Mat grad_map_x, grad_map_y;
+    cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
+    cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
+    cv::filter2D(mosaic_img_, grad_map_y, -1, kernel.t());
+    VLOG(1) << "gradient kernel: " << kernel;
+    std::vector<cv::Mat> channels;
+    channels.emplace_back(grad_map_x);
+    channels.emplace_back(grad_map_y);
+    cv::merge(channels, grad_map_);
 
     // Load reconstructed image for visualization
-    // cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
-    // fr2["mosaic recons map"] >> mosaic_img_recons_;
+    cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
+    fr2["mosaic recons map"] >> mosaic_img_recons_;
   }
 
   Mosaic::~Mosaic()
@@ -236,7 +236,7 @@ namespace dvs_mosaic
       // visualization
       if (visualize)
       {
-        pano_ev = mosaic_img_.clone();
+        pano_ev = mosaic_img_recons_.clone();
         image_util::normalize(pano_ev, pano_ev, 1.);
         cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
       }
@@ -255,8 +255,8 @@ namespace dvs_mosaic
       pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
       // initilize rotation vector with ground truth
-      if (packet_number < init_packet_num_)
-        cv::Rodrigues(Rot_gt, rot_vec_);
+      // if (packet_number < init_packet_num_)
+      //   cv::Rodrigues(Rot_gt, rot_vec_);
 
       // EKF propagation equations for state and covariance
       int packet_events_count = 0;
@@ -278,21 +278,21 @@ namespace dvs_mosaic
           continue;
         }
 
-        if (packet_number > init_packet_num_)
+        //if (packet_number > init_packet_num_)
           processEventForTrack(ev, Rot_prev);
-        processEventForMap(ev, Rot_prev);
+        //processEventForMap(ev, Rot_prev);
 
         ++packet_events_count;
       }
 
-      if (packet_number % num_packet_reconstrct_mosaic_ == 0)
-      {
-        VLOG(1) << "---- Reconstruct Mosaic ----";
-        poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-        //cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
-      }
+      // if (packet_number % num_packet_reconstrct_mosaic_ == 0)
+      // {
+      //   VLOG(1) << "---- Reconstruct Mosaic ----";
+      //   poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
+      //   //cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
+      // }
 
-      publishMap();
+      //publishMap();
 
       calculatePacketPoly();
 
@@ -325,15 +325,15 @@ namespace dvs_mosaic
       }
 
       //Publish comparison image
-      // if(visualize)
-      // {
-      //   cv_bridge::CvImage cv_image;
-      //   cv_image.header.stamp = ros::Time::now();
-      //   cv_image.encoding = "bgr8";
-      //   cv_image.image = pano_ev;
-      //   if (pose_cop_pub_.getNumSubscribers() > 0)
-      //     pose_cop_pub_.publish(cv_image.toImageMsg());
-      // }
+      if(visualize)
+      {
+        cv_bridge::CvImage cv_image;
+        cv_image.header.stamp = ros::Time::now();
+        cv_image.encoding = "bgr8";
+        cv_image.image = pano_ev;
+        if (pose_cop_pub_.getNumSubscribers() > 0)
+          pose_cop_pub_.publish(cv_image.toImageMsg());
+      }
 
       // Slide
       events_.erase(events_.begin(), events_.begin() + num_events_update_);
