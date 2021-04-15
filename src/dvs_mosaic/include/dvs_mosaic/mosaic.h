@@ -84,7 +84,7 @@ private:
   std::map<ros::Time, Transformation> poses_, poses_est_;
   std::vector<double> pose_covar_est_;
   void loadPoses();
-  int gaussian_blur_sigma_;
+  double gaussian_blur_sigma_;
   bool use_gaussian_blur_;
 
   cv::Matx33d Rot_gt;

@@ -25,7 +25,7 @@ namespace dvs_mosaic
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
     nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
-    nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
+    nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
     nh_private.param<bool>("use_grad_thres_", use_grad_thres_, true);
@@ -101,11 +101,14 @@ namespace dvs_mosaic
     VLOG(1) << poses_est_.begin()->second;
     VLOG(1) << "Set initial pose... done!";
 
+    VLOG(1) << "var_process_noise_: " << var_process_noise_;
+    VLOG(1) << "var_R_tracking_: " << var_R_tracking_;
+    VLOG(1) << "var_R_mapping_: " << var_R_mapping_;
     VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "true" : "false");
-    VLOG(1) << "Apply Gradient Threshold?" << (use_grad_thres_ ? "true" : "false; Threshold: ") << grad_thres_;
-    VLOG(1) << "Apply Polygon Threshold?" << (use_polygon_thres_ ? "true" : "false; Tracking area (percent): ") << tracking_area_percent_;
-    VLOG(1) << "Apply Brightness Threshold?" << (use_bright_thres_ ? "true" : "false; Threshold: ") << bright_thres_;
-    VLOG(1) << "Apply Gaussian Blur to reconsturcted map?" << (use_gaussian_blur_ ? "true" : "false; sigma: ") << gaussian_blur_sigma_;
+    VLOG(1) << "Apply Gradient Threshold? " << (use_grad_thres_ ? "true" : "false;") << " Threshold: " << grad_thres_;
+    VLOG(1) << "Apply Polygon Threshold? " << (use_polygon_thres_ ? "true" : "false;") << " Tracking area (percent): " << tracking_area_percent_;
+    VLOG(1) << "Apply Brightness Threshold? " << (use_bright_thres_ ? "true" : "false;") << " Threshold: " << bright_thres_;
+    VLOG(1) << "Apply Gaussian Blur to reconsturcted map? " << (use_gaussian_blur_ ? "true" : "false;") << " sigma: " << gaussian_blur_sigma_;
 
     if (tracker_standalone_)
     {
@@ -237,7 +240,6 @@ namespace dvs_mosaic
     while (num_events_update_ <= events_.size())
     {
       VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count;
-      VLOG(1) << "TRACK using ev= " << num_events_update_ << " events";
       packet_number++;
 
       // Get subset of events
