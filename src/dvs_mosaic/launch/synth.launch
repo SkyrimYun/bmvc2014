@@ -1,14 +1,15 @@
 <launch>
 
-  <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
+  <node pkg="rosbag" type="play" name="player" args="--pause -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
 
-
+  <arg name="only_use_tracker" value="true"/>
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
     <param name="mosaic_height_" value="512"/>
     <param name="init_packet_num_" value="300"/>
+    <param name="tracker_standalone_" value="$(arg only_use_tracker)"/>
 
-    <param name="num_events_update_" value="100"/>
-    <param name="num_packet_reconstrct_mosaic_" value="1"/>
+    <param name="num_events_update_" value="1000"/>
+    <param name="num_packet_reconstrct_mosaic_" value="50"/>
 
     <!-- Mapper parameters -->
     <param name="var_R_mapping_" value="1e4"/>
@@ -16,25 +17,22 @@
     <param name="gaussian_blur_sigma_" value="2"/>
     <!-- Tracker parameters -->
     <param name="var_process_noise_" value="1e-4"/>
-    <param name="var_R_tracking_" value="0.0289"/>
+    <param name="var_R_tracking_" value="0.17 * 0.17"/>
+    <param name="use_grad_thres_" value="false"/>
+    <param name="grad_thres_" value="0.1"/>
+    <param name="use_polygon_thres_" value="false"/>
     <param name="tracking_area_percent_" value="1"/>
-    <param name="grad_thres_" value="0.01"/>
+    <param name="use_bright_thres_" value="false"/>
+    <param name="bright_thres_" value="0.15"/>
 
-
-
-
-
-
-
-
-    <!-- args= v is Printing level. The higher, the more details are printed -->
-
-    <!-- Input / Output -->
     <!-- Which topic to listen? Map topic name of input events -->
     <remap from="events" to="/dvs/events" />
   </node>
 
-  <node name = "image_display" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen"
+
+  <node if="$(arg only_use_tracker)"  name = "image_display" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen"
+    args = "--perspective-file $(find dvs_mosaic)/launch/mosaic_view_tracker.perspective"/>
+  <node unless="$(arg only_use_tracker)"  name = "image_display" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen"
     args = "--perspective-file $(find dvs_mosaic)/launch/mosaic_view.perspective"/>
 
 </launch>

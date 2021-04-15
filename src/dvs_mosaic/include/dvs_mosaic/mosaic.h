@@ -84,7 +84,7 @@ private:
   std::map<ros::Time, Transformation> poses_, poses_est_;
   std::vector<double> pose_covar_est_;
   void loadPoses();
-  double gaussian_blur_sigma_;
+  int gaussian_blur_sigma_;
   bool use_gaussian_blur_;
 
   cv::Matx33d Rot_gt;
@@ -101,9 +101,14 @@ private:
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
-  double tracking_area_percent_;
-  double grad_thres_;
   std::vector<cv::Point> tracking_polygon_;
+  bool tracker_standalone_;
+  bool use_grad_thres_;
+  double grad_thres_;
+  bool use_polygon_thres_;
+  double tracking_area_percent_;
+  bool use_bright_thres_;
+  double bright_thres_;
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
   bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);

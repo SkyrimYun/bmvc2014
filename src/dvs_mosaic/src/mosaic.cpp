@@ -25,10 +25,15 @@ namespace dvs_mosaic
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
     nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
-    nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, false);
-    nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2.0);
-    nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
+    nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
+    nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
+    nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
+    nh_private.param<bool>("use_grad_thres_", use_grad_thres_, true);
     nh_private.param<double>("grad_thres_", grad_thres_, 1);
+    nh_private.param<bool>("use_polygon_thres_", use_polygon_thres_, true);
+    nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
+    nh_private.param<bool>("use_bright_thres_", use_bright_thres_, true);
+    nh_private.param<double>("bright_thres_", bright_thres_, 0.15);
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -96,36 +101,47 @@ namespace dvs_mosaic
     VLOG(1) << poses_est_.begin()->second;
     VLOG(1) << "Set initial pose... done!";
 
-    // Load mosaic image from the result of the mapping part
-    // FILE *pFile;
-    // pFile = fopen("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_image.bin", "rb");
-    // // read image size from file
-    // int sizeImg[2];
-    // size_t res;
-    // res = fread(sizeImg, 2, sizeof(int), pFile);
-    // CHECK_EQ(mosaic_size_.width, sizeImg[0]) << "Mosaic sizes differ";
-    // CHECK_EQ(mosaic_size_.height, sizeImg[1]) << "Mosaic sizes differ";
-    // // read image data from file
-    // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
-    // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
-    // fclose(pFile);
-    // cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
-    // fr1["mosaic map"] >> mosaic_img_;
+    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "true" : "false");
+    VLOG(1) << "Apply Gradient Threshold?" << (use_grad_thres_ ? "true" : "false; Threshold: ") << grad_thres_;
+    VLOG(1) << "Apply Polygon Threshold?" << (use_polygon_thres_ ? "true" : "false; Tracking area (percent): ") << tracking_area_percent_;
+    VLOG(1) << "Apply Brightness Threshold?" << (use_bright_thres_ ? "true" : "false; Threshold: ") << bright_thres_;
+    VLOG(1) << "Apply Gaussian Blur to reconsturcted map?" << (use_gaussian_blur_ ? "true" : "false; sigma: ") << gaussian_blur_sigma_;
 
-    // Compute derivate of the map
-    // cv::Mat grad_map_x, grad_map_y;
-    // cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
-    // cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
-    // cv::filter2D(mosaic_img_, grad_map_y, -1, kernel.t());
-    // VLOG(1) << "gradient kernel: " << kernel;
-    // std::vector<cv::Mat> channels;
-    // channels.emplace_back(grad_map_x);
-    // channels.emplace_back(grad_map_y);
-    // cv::merge(channels, grad_map_);
+    if (tracker_standalone_)
+    {
+      // Load mosaic image from the result of the mapping part
+      // FILE *pFile;
+      // pFile = fopen("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_image.bin", "rb");
+      // // read image size from file
+      // int sizeImg[2];
+      // size_t res;
+      // res = fread(sizeImg, 2, sizeof(int), pFile);
+      // CHECK_EQ(mosaic_size_.width, sizeImg[0]) << "Mosaic sizes differ";
+      // CHECK_EQ(mosaic_size_.height, sizeImg[1]) << "Mosaic sizes differ";
+      // // read image data from file
+      // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
+      // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
+      // fclose(pFile);
+      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+      fr1["mosaic map"] >> mosaic_img_;
 
-    // Load reconstructed image for visualization
-    // cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
-    // fr2["mosaic recons map"] >> mosaic_img_recons_;
+      // Compute derivate of the map
+      cv::Mat grad_map_x, grad_map_y;
+      cv::Mat kernel = 0.5 * (cv::Mat_<double>(1, 3) << -1, 0, 1);
+      cv::filter2D(mosaic_img_, grad_map_x, -1, kernel);
+      cv::filter2D(mosaic_img_, grad_map_y, -1, kernel.t());
+
+      VLOG(1) << "gradient kernel: " << kernel;
+      std::vector<cv::Mat> channels;
+      channels.emplace_back(grad_map_x);
+      channels.emplace_back(grad_map_y);
+      cv::merge(channels, grad_map_);
+
+      // Load reconstructed image for visualization
+      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
+      fr2["mosaic recons map"] >> mosaic_img_recons_;
+     
+    }
   }
 
   Mosaic::~Mosaic()
@@ -188,10 +204,13 @@ namespace dvs_mosaic
     matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
     matplotlibcpp::show();
 
-    // save binary image
-    // std::string filename = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml";
-    // cv::FileStorage fs(filename, cv::FileStorage::WRITE);
-    // fs << "mosaic map" << mosaic_img_;
+    // // save binary image
+    // std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/mosaic.yml";
+    // cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
+    // fs1 << "mosaic map" << mosaic_img_;
+    // std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/mosaic_recons.yml";
+    // cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
+    // fs2 << "mosaic recons map" << pano_ev;
   }
 
   /**
@@ -206,7 +225,6 @@ namespace dvs_mosaic
 
     static unsigned long total_event_count = 0;
     total_event_count += msg->events.size();
-    //VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count << "  queue_size:" << events_.size();
 
     if (packet_number == 0)
     {
@@ -218,8 +236,8 @@ namespace dvs_mosaic
     // Multiple calls to the tracker to consume the events in one message
     while (num_events_update_ <= events_.size())
     {
-      VLOG(1) << "Packet # " << packet_number;
-      VLOG(1) << "TRACK using ev= " << num_events_update_ << " events.  Queue size()=" << events_.size();
+      VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count;
+      VLOG(1) << "TRACK using ev= " << num_events_update_ << " events";
       packet_number++;
 
       // Get subset of events
@@ -236,9 +254,14 @@ namespace dvs_mosaic
       // visualization
       if (visualize)
       {
-        pano_ev = mosaic_img_.clone();
-        image_util::normalize(pano_ev, pano_ev, 1.);
-        cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
+        if(tracker_standalone_)
+          pano_ev = mosaic_img_recons_.clone();
+        else
+        {
+          pano_ev = mosaic_img_.clone();
+          image_util::normalize(pano_ev, pano_ev, 1.);
+          cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
+        }
       }
 
       // Compute ground truth rotation matrix (shared by all events in the batch)
@@ -255,7 +278,7 @@ namespace dvs_mosaic
       pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
       // initilize rotation vector with ground truth
-      if (packet_number < init_packet_num_)
+      if (packet_number < init_packet_num_ && !tracker_standalone_)
         cv::Rodrigues(Rot_gt, rot_vec_);
 
       // EKF propagation equations for state and covariance
@@ -278,21 +301,24 @@ namespace dvs_mosaic
           continue;
         }
 
-        if (packet_number > init_packet_num_)
-          processEventForTrack(ev, Rot_prev);
-        processEventForMap(ev, Rot_prev);
+        //if (packet_number > init_packet_num_)
+        processEventForTrack(ev, Rot_prev);
+        if(!tracker_standalone_)
+          processEventForMap(ev, Rot_prev);
 
         ++packet_events_count;
       }
 
-      if (packet_number % num_packet_reconstrct_mosaic_ == 0)
+      if (packet_number % num_packet_reconstrct_mosaic_ == 0 && !tracker_standalone_)
       {
         VLOG(1) << "---- Reconstruct Mosaic ----";
         poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-        //cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
+        if(use_gaussian_blur_)
+          cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
       }
 
-      publishMap();
+      if(!tracker_standalone_)
+        publishMap();
 
       calculatePacketPoly();
 
@@ -325,15 +351,15 @@ namespace dvs_mosaic
       }
 
       //Publish comparison image
-      // if(visualize)
-      // {
-      //   cv_bridge::CvImage cv_image;
-      //   cv_image.header.stamp = ros::Time::now();
-      //   cv_image.encoding = "bgr8";
-      //   cv_image.image = pano_ev;
-      //   if (pose_cop_pub_.getNumSubscribers() > 0)
-      //     pose_cop_pub_.publish(cv_image.toImageMsg());
-      // }
+      if(visualize && tracker_standalone_)
+      {
+        cv_bridge::CvImage cv_image;
+        cv_image.header.stamp = ros::Time::now();
+        cv_image.encoding = "bgr8";
+        cv_image.image = pano_ev;
+        if (pose_cop_pub_.getNumSubscribers() > 0)
+          pose_cop_pub_.publish(cv_image.toImageMsg());
+      }
 
       // Slide
       events_.erase(events_.begin(), events_.begin() + num_events_update_);

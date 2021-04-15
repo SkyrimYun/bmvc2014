@@ -246,7 +246,7 @@
                 },
                 "mouse_pub_topic": {
                   "type": "repr",
-                  "repr": "u'/mosaic_mouse_left'"
+                  "repr": "u'/pose_compare_mouse_left'"
                 },
                 "num_gridlines": {
                   "type": "repr",
@@ -266,7 +266,7 @@
                 },
                 "topic": {
                   "type": "repr",
-                  "repr": "u'/mosaic'"
+                  "repr": "u'/pose_compare'"
                 },
                 "publish_click_location": {
                   "type": "repr",
