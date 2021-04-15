@@ -75,11 +75,12 @@ namespace dvs_mosaic
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
 
-        // if(std::isnan(predicted_contrast))
-        // {
-        //     VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
-        //     return;
-        // }
+        if(std::isnan(predicted_contrast))
+        {
+            skip_count_bright_++;
+            VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+            return;
+        }
 
         cv::Mat deriv_pred_contrast;
         computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);

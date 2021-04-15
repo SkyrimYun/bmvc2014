@@ -22,10 +22,11 @@ namespace dvs_mosaic
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
     nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
     nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4); // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
-    nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.17 * 0.17);
+    nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
     nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
-    nh_private.param<int>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
+    nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, false);
+    nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2.0);
     nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
     nh_private.param<double>("grad_thres_", grad_thres_, 1);
 
@@ -108,7 +109,7 @@ namespace dvs_mosaic
     // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
     // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
     // fclose(pFile);
-    // cv::FileStorage fr1("/home/yunfan/work_spaces/EventVision/exe8/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+    // cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
     // fr1["mosaic map"] >> mosaic_img_;
 
     // Compute derivate of the map
@@ -176,7 +177,7 @@ namespace dvs_mosaic
     matplotlibcpp::ylabel("angle [deg]");
     matplotlibcpp::title("wrapped angles vs time");
     matplotlibcpp::legend();
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_23.png");
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
     matplotlibcpp::show();
 
     matplotlibcpp::figure();
@@ -184,8 +185,13 @@ namespace dvs_mosaic
     matplotlibcpp::xlabel("time");
     matplotlibcpp::ylabel("[deg]");
     matplotlibcpp::title("sqrt(Trace of the state covariance)");
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_23.png");
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
     matplotlibcpp::show();
+
+    // save binary image
+    // std::string filename = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml";
+    // cv::FileStorage fs(filename, cv::FileStorage::WRITE);
+    // fs << "mosaic map" << mosaic_img_;
   }
 
   /**
@@ -200,7 +206,7 @@ namespace dvs_mosaic
 
     static unsigned long total_event_count = 0;
     total_event_count += msg->events.size();
-    VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count << "  queue_size:" << events_.size();
+    //VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count << "  queue_size:" << events_.size();
 
     if (packet_number == 0)
     {
@@ -208,12 +214,13 @@ namespace dvs_mosaic
       time_map_ = cv::Mat(sensor_height_, sensor_width_, CV_64FC1, cv::Scalar(-0.01));
       map_of_last_rotations_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
     }
-    packet_number++;
 
     // Multiple calls to the tracker to consume the events in one message
     while (num_events_update_ <= events_.size())
     {
+      VLOG(1) << "Packet # " << packet_number;
       VLOG(1) << "TRACK using ev= " << num_events_update_ << " events.  Queue size()=" << events_.size();
+      packet_number++;
 
       // Get subset of events
       events_subset_ = std::vector<dvs_msgs::Event>(events_.begin(),
@@ -255,6 +262,7 @@ namespace dvs_mosaic
       int packet_events_count = 0;
       skip_count_polygon_ = 0;
       skip_count_grad_ = 0;
+      skip_count_bright_ = 0;
       // Loop through the events
       for (const dvs_msgs::Event &ev : events_subset_)
       {
@@ -281,7 +289,7 @@ namespace dvs_mosaic
       {
         VLOG(1) << "---- Reconstruct Mosaic ----";
         poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-        cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
+        //cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
       }
 
       publishMap();
@@ -290,6 +298,7 @@ namespace dvs_mosaic
 
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
+      VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
       // Debugging
       if (extra_log_debugging)
