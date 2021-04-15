@@ -65,7 +65,7 @@ namespace dvs_mosaic
             return;
         }
 
-        if(use_polygon_thres_ && cv::pointPolygonTest(tracking_polygon_, pm, false)<0)
+        if (use_polygon_thres_ && !tracking_polygon_.empty() && cv::pointPolygonTest(tracking_polygon_, pm, false) < 0)
         {
             VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
             skip_count_polygon_++;
