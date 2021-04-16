@@ -283,6 +283,8 @@ namespace dvs_mosaic
       if (packet_number < init_packet_num_ && !tracker_standalone_)
         cv::Rodrigues(Rot_gt, rot_vec_);
 
+      calculatePacketPoly();
+
       // EKF propagation equations for state and covariance
       int packet_events_count = 0;
       skip_count_polygon_ = 0;
@@ -322,7 +324,7 @@ namespace dvs_mosaic
       if(!tracker_standalone_)
         publishMap();
 
-      calculatePacketPoly();
+      //calculatePacketPoly();
 
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;

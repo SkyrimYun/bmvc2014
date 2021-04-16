@@ -125,7 +125,7 @@ namespace dvs_mosaic
         project_EquirectangularProjection(br_bvec, pm_packet_br);
         project_EquirectangularProjection(ul_bvec, pm_packet_ul);
         project_EquirectangularProjection(ur_bvec, pm_packet_ur);
-        if (pm_packet_bl.x > pm_packet_ur.x)
+        if (pm_packet_bl.x > pm_packet_br.x || pm_packet_ul.x > pm_packet_ur.x)
         {
             pm_packet_ur = cv::Point2f(mosaic_width_, mosaic_height_);
             pm_packet_ul = cv::Point2f(0, mosaic_height_);
