@@ -109,6 +109,7 @@ private:
   double tracking_area_percent_;
   bool use_bright_thres_;
   double bright_thres_;
+  double t_prev = -0.1;
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
   bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);

@@ -2,26 +2,26 @@
 
   <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u 5. /home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/events.bag" />
 
-  <arg name="only_use_tracker" value="false"/>
+  <arg name="only_use_tracker" value="true"/>
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
     <param name="mosaic_height_" value="512"/>
     <param name="init_packet_num_" value="200"/>
     <param name="tracker_standalone_" value="$(arg only_use_tracker)"/>
 
     <param name="num_events_update_" value="1000"/>
-    <param name="num_packet_reconstrct_mosaic_" value="25"/>
+    <param name="num_packet_reconstrct_mosaic_" value="50"/>
 
     <!-- Mapper parameters -->
     <param name="var_R_mapping_" value="1.0e4"/>
     <param name="use_gaussian_blur_" value="false"/>
-    <param name="gaussian_blur_sigma_" value="0.5"/>
+    <param name="gaussian_blur_sigma_" value="1"/>
     <!-- Tracker parameters -->
     <param name="var_process_noise_" value="1.0e-4"/>
-    <param name="var_R_tracking_" value="0.03"/>
+    <param name="var_R_tracking_" value="3.0e-2"/>
     <param name="use_grad_thres_" value="false"/>
     <param name="grad_thres_" value="5.0e-2"/>
-    <param name="use_polygon_thres_" value="true"/>
-    <param name="tracking_area_percent_" value="0.8"/>
+    <param name="use_polygon_thres_" value="false"/>
+    <param name="tracking_area_percent_" value="0.9"/>
     <param name="use_bright_thres_" value="false"/>
     <param name="bright_thres_" value="0.15"/>
 

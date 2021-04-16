@@ -280,38 +280,148 @@ namespace dvs_mosaic
       pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
       // initilize rotation vector with ground truth
-      if (packet_number < init_packet_num_ && !tracker_standalone_)
+      if (packet_number < init_packet_num_ )
         cv::Rodrigues(Rot_gt, rot_vec_);
 
       calculatePacketPoly();
 
+      // packet
+      cv::Mat inno_packet = cv::Mat(num_events_update_, 1, CV_64FC1);
+      cv::Mat jacb_packet = cv::Mat(num_events_update_, 3, CV_64FC1);
+      std::vector<int> idxs;
+
       // EKF propagation equations for state and covariance
+      const double dt = time_packet_.toSec() - t_prev;
+      t_prev = time_packet_.toSec();
       int packet_events_count = 0;
+
+      cv::Mat rot_pred = rot_vec_.clone();
+      cv::Mat covar_pred = covar_rot_ + cv::Mat::eye(3, 3, CV_64FC1) * (var_process_noise_ * dt);
+      cv::Matx33d Rot_pred;
+      cv::Rodrigues(rot_pred, Rot_pred);
+
+      // EKF propagation equations for state and covariance
       skip_count_polygon_ = 0;
       skip_count_grad_ = 0;
       skip_count_bright_ = 0;
       // Loop through the events
       for (const dvs_msgs::Event &ev : events_subset_)
       {
+
         // update rotation map
         const int idx = ev.y * sensor_width_ + ev.x;
-        const cv::Matx33d Rot_cur;
-        cv::Rodrigues(rot_vec_, Rot_cur);
+        idxs.push_back(idx);
         cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
-        map_of_last_rotations_[idx] = Rot_cur;
+
+
         if (std::isnan(Rot_prev(0, 0)))
         {
           VLOG(3) << "Uninitialized event. Continue";
+          map_of_last_rotations_[idx] = Rot_pred;
+
           continue;
         }
 
-        //if (packet_number > init_packet_num_)
-        processEventForTrack(ev, Rot_prev);
+        // Visualization
+        if (visualize)
+        {
+          // Visualization
+          // Get map point corresponding to current event and ground truth rotation
+          cv::Point3d rotated_bvec_gt = Rot_gt * precomputed_bearing_vectors_.at(idx);
+          cv::Point3d rotated_bvec_est = Rot_pred * precomputed_bearing_vectors_.at(idx);
+
+          cv::Point2f pm_gt;
+          cv::Point2f pm_est;
+
+          project_EquirectangularProjection(rotated_bvec_gt, pm_gt);
+          project_EquirectangularProjection(rotated_bvec_est, pm_est);
+          const int icg = pm_gt.x, irg = pm_gt.y; // integer position
+
+          // draw ROI polygon
+          cv::polylines(pano_ev, tracking_polygon_, true, cv::Scalar{255, 0, 0}, 2);
+
+          if (0 <= irg && irg < mosaic_height_ && 0 <= icg && icg < mosaic_width_)
+          {
+            cv::circle(pano_ev, cv::Point(icg, irg), 10, cv::Scalar(0, 255, 0));
+          }
+          const int ice = pm_est.x, ire = pm_est.y; // integer position
+          if (0 <= ire && ire < mosaic_height_ && 0 <= ice && ice < mosaic_width_)
+          {
+            cv::circle(pano_ev, cv::Point(ice, ire), 5, cv::Scalar(0, 0, 255));
+          }
+        }
+
+        cv::Point3d rotated_bvec = Rot_pred * precomputed_bearing_vectors_.at(idx);
+        cv::Point2f pm;
+        cv::Mat dpm_d3d = project_EquirectangularProjection(rotated_bvec, pm, true);
+
+        cv::Point3d rotated_bvec_prev = Rot_prev * precomputed_bearing_vectors_.at(idx);
+        cv::Point2f pm_prev;
+        project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
+
+
+        cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
+
+        if (use_grad_thres_ && abs(grad_vec[0] + grad_vec[1]) < grad_thres_)
+        {
+          VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+          skip_count_grad_++;
+          continue;
+        }
+
+
+        if (use_polygon_thres_ && !tracking_polygon_.empty() && cv::pointPolygonTest(tracking_polygon_, pm, false) < 0)
+        {
+          VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+          skip_count_polygon_++;
+          continue;
+        }
+
+        double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
+
+        if (std::isnan(predicted_contrast))
+        {
+          VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
+          skip_count_bright_++;
+          continue;
+        }
+
+        cv::Mat deriv_pred_contrast;
+        computeDeriv(pm, dpm_d3d, rotated_bvec, deriv_pred_contrast);
+
+        //double innovation = C_th_ - (ev.polarity ? 1 : -1) * predicted_contrast;
+        double innovation = C_th_ - predicted_contrast;
+        deriv_pred_contrast = (ev.polarity ? 1 : -1) * deriv_pred_contrast;
+
+        inno_packet.row(packet_events_count) = innovation;
+        jacb_packet.row(packet_events_count) = deriv_pred_contrast + 0;
+
+       
         if(!tracker_standalone_)
           processEventForMap(ev, Rot_prev);
 
         ++packet_events_count;
       }
+
+      if(packet_events_count>0)
+      {
+        // Implement EKF traker correction-step equations. Matrix form (by stacking measurement equations)
+        jacb_packet = jacb_packet(cv::Rect(0, 0, 3, packet_events_count)).clone();
+        inno_packet = inno_packet(cv::Rect(0, 0, 1, packet_events_count)).clone();
+        const double ivar_meas_noise = 1 / var_R_tracking_;
+        cv::Mat S_inv_packet = -(ivar_meas_noise * ivar_meas_noise) * jacb_packet * (covar_pred.inv() + ivar_meas_noise * (jacb_packet.t() * jacb_packet)).inv() * jacb_packet.t();
+        S_inv_packet += (cv::Mat::eye(S_inv_packet.rows, S_inv_packet.cols, CV_64FC1) * ivar_meas_noise);
+        cv::Mat kalman_gain_packet = covar_pred * jacb_packet.t() * S_inv_packet;
+        rot_vec_ = rot_pred + kalman_gain_packet * inno_packet;
+        covar_rot_ = covar_pred - kalman_gain_packet * jacb_packet * covar_pred;
+      }
+     
+
+      cv::Matx33d Rot_cur;
+      cv::Rodrigues(rot_vec_, Rot_cur);
+      for (int n : idxs)
+        map_of_last_rotations_[n] = Rot_cur;
+
 
       if (packet_number % num_packet_reconstrct_mosaic_ == 0 && !tracker_standalone_)
       {
@@ -321,11 +431,12 @@ namespace dvs_mosaic
           cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
       }
 
+
       if(!tracker_standalone_)
         publishMap();
 
       //calculatePacketPoly();
-
+      VLOG(1) << "total events processed: " << packet_events_count;
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
       VLOG(1) << "skip count brightness: " << skip_count_bright_;
