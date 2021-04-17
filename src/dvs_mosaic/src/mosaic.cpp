@@ -280,7 +280,7 @@ namespace dvs_mosaic
       pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
       // initilize rotation vector with ground truth
-      if (packet_number < init_packet_num_ )
+      if (!tracker_standalone_ && packet_number < init_packet_num_)
         cv::Rodrigues(Rot_gt, rot_vec_);
 
       calculatePacketPoly();
@@ -291,6 +291,11 @@ namespace dvs_mosaic
       std::vector<int> idxs;
 
       // EKF propagation equations for state and covariance
+      if(t_prev<0)
+      {
+        t_prev = time_packet_.toSec();
+        continue;
+      }
       const double dt = time_packet_.toSec() - t_prev;
       t_prev = time_packet_.toSec();
       int packet_events_count = 0;
@@ -313,15 +318,23 @@ namespace dvs_mosaic
         idxs.push_back(idx);
         cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
 
+        const double t_ev = ev.ts.toSec();
+        const double t_prev_pix = time_map_.at<double>(ev.y, ev.x);
 
-        if (std::isnan(Rot_prev(0, 0)))
+        if (std::isnan(Rot_prev(0, 0)) || t_prev_pix < 0)
         {
           VLOG(3) << "Uninitialized event. Continue";
+          time_map_.at<double>(ev.y, ev.x) = t_ev;
           map_of_last_rotations_[idx] = Rot_pred;
-
           continue;
         }
 
+        // Mapper
+        if (!tracker_standalone_)
+          processEventForMap(ev, Rot_prev);
+
+
+        // Tracker
         // Visualization
         if (visualize)
         {
@@ -359,9 +372,7 @@ namespace dvs_mosaic
         cv::Point2f pm_prev;
         project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
-
         cv::Vec2f grad_vec = grad_map_.at<cv::Vec2f>(pm);
-
         if (use_grad_thres_ && abs(grad_vec[0] + grad_vec[1]) < grad_thres_)
         {
           VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
@@ -378,7 +389,6 @@ namespace dvs_mosaic
         }
 
         double predicted_contrast = computePredictedConstrastOfEvent(pm, pm_prev);
-
         if (std::isnan(predicted_contrast))
         {
           VLOG(2) << "!!!!!!!!!!!SKIP POINTS!!!!!!!!!!!!!!!!!!!!";
@@ -397,9 +407,6 @@ namespace dvs_mosaic
         jacb_packet.row(packet_events_count) = deriv_pred_contrast + 0;
 
        
-        if(!tracker_standalone_)
-          processEventForMap(ev, Rot_prev);
-
         ++packet_events_count;
       }
 
