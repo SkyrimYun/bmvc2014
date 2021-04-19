@@ -104,11 +104,11 @@ namespace dvs_mosaic
     VLOG(1) << "var_process_noise_: " << var_process_noise_;
     VLOG(1) << "var_R_tracking_: " << var_R_tracking_;
     VLOG(1) << "var_R_mapping_: " << var_R_mapping_;
-    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "true" : "false");
-    VLOG(1) << "Apply Gradient Threshold? " << (use_grad_thres_ ? "true" : "false;") << " Threshold: " << grad_thres_;
-    VLOG(1) << "Apply Polygon Threshold? " << (use_polygon_thres_ ? "true" : "false;") << " Tracking area (percent): " << tracking_area_percent_;
-    VLOG(1) << "Apply Brightness Threshold? " << (use_bright_thres_ ? "true" : "false;") << " Threshold: " << bright_thres_;
-    VLOG(1) << "Apply Gaussian Blur to reconsturcted map? " << (use_gaussian_blur_ ? "true" : "false;") << " sigma: " << gaussian_blur_sigma_;
+    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "True" : "False");
+    VLOG(1) << "Apply Gradient Threshold? " << (use_grad_thres_ ? "True" : "False;") << " Threshold: " << grad_thres_;
+    VLOG(1) << "Apply Polygon Threshold? " << (use_polygon_thres_ ? "True" : "False;") << " Tracking area (percent): " << tracking_area_percent_;
+    VLOG(1) << "Apply Brightness Threshold? " << (use_bright_thres_ ? "True" : "False;") << " Threshold: " << bright_thres_;
+    VLOG(1) << "Apply Gaussian Blur to reconsturcted map? " << (use_gaussian_blur_ ? "True" : "False;") << " sigma: " << gaussian_blur_sigma_;
 
     if (tracker_standalone_)
     {
