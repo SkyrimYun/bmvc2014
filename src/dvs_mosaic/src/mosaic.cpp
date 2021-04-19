@@ -125,7 +125,7 @@ namespace dvs_mosaic
       // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
       // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
       // fclose(pFile);
-      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml", cv::FileStorage::READ);
       fr1["mosaic map"] >> mosaic_img_;
 
       // Compute derivate of the map
@@ -141,7 +141,7 @@ namespace dvs_mosaic
       cv::merge(channels, grad_map_);
 
       // Load reconstructed image for visualization
-      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
+      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml", cv::FileStorage::READ);
       fr2["mosaic recons map"] >> mosaic_img_recons_;
      
     }
@@ -149,6 +149,7 @@ namespace dvs_mosaic
 
   Mosaic::~Mosaic()
   {
+    VLOG(1) << "Terminate!";
     time_map_pub_.shutdown();
     mosaic_pub_.shutdown();
     mosaic_gradx_pub_.shutdown();
@@ -157,63 +158,66 @@ namespace dvs_mosaic
     pose_pub_.shutdown();
     pose_cop_pub_.shutdown();
 
-    // std::vector<double> times_gt;
-    // std::vector<double> a1_gt;
-    // std::vector<double> a2_gt;
-    // std::vector<double> a3_gt;
-    // for (auto &p : poses_)
-    // {
-    //   times_gt.push_back(p.first.toSec());
-    //   Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-    //   a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-    //   a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-    //   a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
-    // }
+    std::vector<double> times_gt;
+    std::vector<double> a1_gt;
+    std::vector<double> a2_gt;
+    std::vector<double> a3_gt;
+    for (auto &p : poses_)
+    {
+      times_gt.push_back(p.first.toSec());
+      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+      a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+      a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+      a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    }
 
-    // matplotlibcpp::figure();
-    // matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
-    // matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
-    // matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
+    matplotlibcpp::figure();
+    matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
+    matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
+    matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
 
-    // std::vector<double> times_est;
-    // std::vector<double> a1_est;
-    // std::vector<double> a2_est;
-    // std::vector<double> a3_est;
-    // for (auto &p : poses_est_)
-    // {
-    //   times_est.push_back(p.first.toSec());
-    //   Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-    //   a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-    //   a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-    //   a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
-    // }
+    std::vector<double> times_est;
+    std::vector<double> a1_est;
+    std::vector<double> a2_est;
+    std::vector<double> a3_est;
+    for (auto &p : poses_est_)
+    {
+      times_est.push_back(p.first.toSec());
+      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+      a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+      a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+      a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+    }
 
-    // matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
-    // matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
-    // matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
+    matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
+    matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
+    matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
 
-    // matplotlibcpp::xlabel("time");
-    // matplotlibcpp::ylabel("angle [deg]");
-    // matplotlibcpp::title("wrapped angles vs time");
-    // matplotlibcpp::legend();
-    // matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
-    // matplotlibcpp::show();
+    matplotlibcpp::xlabel("time");
+    matplotlibcpp::ylabel("angle [deg]");
+    matplotlibcpp::title("wrapped angles vs time");
+    matplotlibcpp::legend();
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
+    matplotlibcpp::show();
 
-    // matplotlibcpp::figure();
-    // matplotlibcpp::plot(times_est, pose_covar_est_, "b");
-    // matplotlibcpp::xlabel("time");
-    // matplotlibcpp::ylabel("[deg]");
-    // matplotlibcpp::title("sqrt(Trace of the state covariance)");
-    // matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
-    // matplotlibcpp::show();
+    matplotlibcpp::figure();
+    matplotlibcpp::plot(times_est, pose_covar_est_, "b");
+    matplotlibcpp::xlabel("time");
+    matplotlibcpp::ylabel("[deg]");
+    matplotlibcpp::title("sqrt(Trace of the state covariance)");
+    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
+    matplotlibcpp::show();
 
-    // // save binary image
-    // std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/mosaic.yml";
-    // cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
-    // fs1 << "mosaic map" << mosaic_img_;
-    // std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/mosaic_recons.yml";
-    // cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
-    // fs2 << "mosaic recons map" << pano_ev;
+    // save binary image
+    std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml";
+    cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
+    fs1 << "mosaic map" << mosaic_img_;
+    std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml";
+    cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
+    pano_ev = mosaic_img_.clone();
+    image_util::normalize(pano_ev, pano_ev, 1.);
+    cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
+    fs2 << "mosaic recons map" << pano_ev;
   }
 
   /**
@@ -281,7 +285,10 @@ namespace dvs_mosaic
 
       // initilize rotation vector with ground truth
       if (packet_number < init_packet_num_ && !tracker_standalone_)
+      {
+        VLOG(1) << "using GT value";
         cv::Rodrigues(Rot_gt, rot_vec_);
+      }
 
       calculatePacketPoly();
 
@@ -299,16 +306,23 @@ namespace dvs_mosaic
         cv::Rodrigues(rot_vec_, Rot_cur);
         cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
         map_of_last_rotations_[idx] = Rot_cur;
-        if (std::isnan(Rot_prev(0, 0)))
+        const double t_prev = time_map_.at<double>(ev.y, ev.x);
+        if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
         {
           VLOG(3) << "Uninitialized event. Continue";
+          time_map_.at<double>(ev.y, ev.x) = ev.ts.toSec();
           continue;
         }
 
-        //if (packet_number > init_packet_num_)
-        processEventForTrack(ev, Rot_prev);
-        if(!tracker_standalone_)
+        if(tracker_standalone_)
+          processEventForTrack(ev, Rot_prev);
+        else
+        {
+          if (packet_number > init_packet_num_)
+            processEventForTrack(ev, Rot_prev);
           processEventForMap(ev, Rot_prev);
+        }
+       
 
         ++packet_events_count;
       }
@@ -347,10 +361,9 @@ namespace dvs_mosaic
         // ofs << "jacb packet: " << jacb_packet.rows << ", " << jacb_packet.cols << std::endl;
         // ofs << jacb_packet << std::endl;
         ofs << "GT rotation vec: [" << rot_vec_gt(0, 0) << ", " << rot_vec_gt(1, 0) << ", " << rot_vec_gt(2, 0) << std::endl;
-        ofs << "rotation vec: " << std::endl;
-        ofs << rot_vec_ << std::endl;
+        ofs << "rotation vec:    [" << rot_vec_.at<double>(0, 0) << ", " << rot_vec_.at<double>(1, 0) <<", "<< rot_vec_.at<double>(2, 0) << std::endl;
         count2++;
-        if (count2 == 100)
+        if (count2 == init_packet_num_+100)
           ofs.close();
       }
 

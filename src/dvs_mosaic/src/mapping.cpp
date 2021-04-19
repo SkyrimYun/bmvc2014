@@ -18,13 +18,6 @@ void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot
   const double t_prev = time_map_.at<double>(ev.y, ev.x);
   time_map_.at<double>(ev.y, ev.x) = t_ev;
 
-  
-  if (t_prev < 0)
-  {
-    VLOG(3) << "Uninitialized pixel. Continue";
-    return;
-  }
-
   const double dt_ev = t_ev - t_prev;
   CHECK_GT(dt_ev,0) << "Non-positive dt_ev"; // Two events at same pixel with same timestamp
 
