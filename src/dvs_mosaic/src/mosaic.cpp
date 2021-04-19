@@ -125,7 +125,7 @@ namespace dvs_mosaic
       // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
       // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
       // fclose(pFile);
-      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml", cv::FileStorage::READ);
+      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
       fr1["mosaic map"] >> mosaic_img_;
 
       // Compute derivate of the map
@@ -141,7 +141,7 @@ namespace dvs_mosaic
       cv::merge(channels, grad_map_);
 
       // Load reconstructed image for visualization
-      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml", cv::FileStorage::READ);
+      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
       fr2["mosaic recons map"] >> mosaic_img_recons_;
      
     }
@@ -149,7 +149,16 @@ namespace dvs_mosaic
 
   Mosaic::~Mosaic()
   {
-    VLOG(1) << "Terminate!";
+    double rmse = 0;
+    for (int i = 0; i < recorded_pose_est_.size(); i++)
+    {
+      double error = (recorded_pose_gt_[i].inverse() * recorded_pose_est_[i]).log().norm();
+      rmse += error * error;
+    }
+    rmse = rmse / double(recorded_pose_est_.size());
+    rmse = sqrt(rmse);
+    VLOG(1) << "RMSE = " << rmse;
+
     time_map_pub_.shutdown();
     mosaic_pub_.shutdown();
     mosaic_gradx_pub_.shutdown();
@@ -209,15 +218,18 @@ namespace dvs_mosaic
     matplotlibcpp::show();
 
     // save binary image
-    std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml";
-    cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
-    fs1 << "mosaic map" << mosaic_img_;
-    std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml";
-    cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
-    pano_ev = mosaic_img_.clone();
-    image_util::normalize(pano_ev, pano_ev, 1.);
-    cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
-    fs2 << "mosaic recons map" << pano_ev;
+    if (!tracker_standalone_)
+    {
+      std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml";
+      cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
+      fs1 << "mosaic map" << mosaic_img_;
+      std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml";
+      cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
+      pano_ev = mosaic_img_.clone();
+      image_util::normalize(pano_ev, pano_ev, 1.);
+      cv::cvtColor(pano_ev, pano_ev, cv::COLOR_GRAY2BGR);
+      fs2 << "mosaic recons map" << pano_ev;
+    }
   }
 
   /**
@@ -225,7 +237,6 @@ namespace dvs_mosaic
   */
   void Mosaic::eventsCallback(const dvs_msgs::EventArray::ConstPtr &msg)
   {
-
     // Append events of current message to the queue
     for (const dvs_msgs::Event &ev : msg->events)
       events_.push_back(ev);
@@ -272,23 +283,14 @@ namespace dvs_mosaic
 
       // Compute ground truth rotation matrix (shared by all events in the batch)
       rotationAt(time_packet_, Rot_gt); // Ground truth pose
-      cv::Matx33d Rot_interp;
-      cv::Rodrigues(rot_vec_, Rot_interp);
-      Eigen::Matrix3d R_eigen;
-      for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-        {
-          R_eigen(i, j) = Rot_interp(i, j);
-        }
-      poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), Eigen::Quaterniond(R_eigen))});
-      pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
-
       // initilize rotation vector with ground truth
       if (packet_number < init_packet_num_ && !tracker_standalone_)
       {
         VLOG(1) << "using GT value";
         cv::Rodrigues(Rot_gt, rot_vec_);
       }
+
+      dataCollect();
 
       calculatePacketPoly();
 
@@ -381,6 +383,28 @@ namespace dvs_mosaic
       // Slide
       events_.erase(events_.begin(), events_.begin() + num_events_update_);
     }
+  }
+
+  void Mosaic::dataCollect()
+  {
+    cv::Matx33d Rot_interp;
+    cv::Rodrigues(rot_vec_, Rot_interp);
+    Eigen::Matrix3d R_eigen_est;
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+      {
+        R_eigen_est(i, j) = Rot_interp(i, j);
+      }
+    poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), Eigen::Quaterniond(R_eigen_est))});
+    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+    Eigen::Matrix3d R_eigen_gt;
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+      {
+        R_eigen_gt(i, j) = Rot_gt(i, j);
+      }
+    recorded_pose_gt_.push_back(Sophus::SO3d(R_eigen_gt));
+    recorded_pose_est_.push_back(Sophus::SO3d(R_eigen_est));
   }
 
 }

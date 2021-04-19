@@ -19,6 +19,7 @@
 
 #include <matplotlibcpp.h>
 
+#include <sophus/so3.hpp>
 
 namespace dvs_mosaic
 {
@@ -95,6 +96,8 @@ private:
   int skip_count_grad_;
   int skip_count_bright_;
   int init_packet_num_;
+  std::vector<Sophus::SO3d> recorded_pose_gt_;
+  std::vector<Sophus::SO3d> recorded_pose_est_;
 
   // Tracking
   int num_events_update_;
@@ -135,6 +138,8 @@ private:
       const cv::Mat dpm_d3d,
       const cv::Point3d rotated_bvec,
       cv::Mat &Jac);
+
+  void dataCollect();
 };
 
 } // namespace
