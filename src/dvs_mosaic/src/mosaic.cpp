@@ -25,7 +25,8 @@ namespace dvs_mosaic
     nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
     nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4); // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
-    nh_private.param<double>("var_R_mapping_", var_R_mapping_, 1e4);
+    nh_private.param<bool>("measure_contrast_", measure_contrast_, true);
+    //nh_private.param<double>("var_R_mapping_", var_R_mapping_, 0.0289);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
     nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
@@ -82,6 +83,10 @@ namespace dvs_mosaic
   
     // Observation / Measurement function
     C_th_ = 0.45;                 // dataset
+    if (measure_contrast_)
+      var_R_mapping_ = 0.17 * 0.17; // units [C_th]^2, (contrast)
+    else
+      var_R_mapping_ = 1e4; // units [1/second]^2, (event rate)
 
     // Initialize tracker's state and covariance
     rot_vec_ = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -137,25 +142,25 @@ namespace dvs_mosaic
       std::string mosaic_recons_path;
       if (!use_partial_mosaic_)
       {
-        mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml";
-        mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml";
+        mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated.yml";
+        mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated.yml";
       }
       else
       {
         if(partial_mosaic_dur_==1)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_01s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_01s.yml";
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_01s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_01s.yml";
         }
         else if(partial_mosaic_dur_==3)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_03s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_03s.yml";
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_03s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_03s.yml";
         }
         else if (partial_mosaic_dur_ == 5)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_05s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_05s.yml";
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_05s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_05s.yml";
         }
       }
 
@@ -261,10 +266,10 @@ namespace dvs_mosaic
     // Save binary image
     if (!tracker_standalone_)
     {
-      std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml";
+      std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_updated_partial.yml";
       cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
       fs1 << "mosaic map" << mosaic_img_;
-      std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial.yml";
+      std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_updated_partial.yml";
       cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
       pano_ev = mosaic_img_.clone();
       image_util::normalize(pano_ev, pano_ev, 1.);

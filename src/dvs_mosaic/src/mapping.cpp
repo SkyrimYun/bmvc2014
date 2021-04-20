@@ -23,7 +23,6 @@ namespace dvs_mosaic
     const double dt_ev = t_ev - t_prev;
     CHECK_GT(dt_ev, 0) << "Non-positive dt_ev"; // Two events at same pixel with same timestamp
 
-    const double thres = ev.polarity ? 1.0 : -1.0;
 
     const cv::Matx33d Rot;
     cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
@@ -42,7 +41,7 @@ namespace dvs_mosaic
     project_EquirectangularProjection(rotated_bvec_prev, pm_prev);
 
     // Get approx optical flow vector (vector v in the paper)
-    cv::Point2f flow_vec = (pm - pm_prev) / dt_ev;
+    cv::Point2f flow_vec = (pm - pm_prev) / (dt_ev + 1e-9);
 
     // Extended Kalman Filter (EKF) for the intensity gradient map.
     // Get gradient and covariance at current map point pm
@@ -54,17 +53,28 @@ namespace dvs_mosaic
 
 
     // Compute innovation, measurement matrix and Kalman gain
-    float nu_innovation = 1 / dt_ev - (gm(0,0) * flow_vec.x + gm(1, 0) * flow_vec.y) / thres;
-    cv::Matx12f dh_dg(flow_vec.x / thres, flow_vec.y / thres);
-    float s = (dh_dg * Pg * dh_dg.t())(0,0) + var_R_mapping_;
-    cv::Matx21f Kalman_gain = (Pg * dh_dg.t());
-    Kalman_gain(0, 0) = Kalman_gain(0, 0) / s;
-    Kalman_gain(1, 0) = Kalman_gain(1, 0) / s;
+    cv::Matx21f dh_dg;
+    float nu_innovation;
+    if(measure_contrast_)
+    {
+      // Use contrast as measurement function (Gallego, arXiv 2015)
+      dh_dg = cv::Matx21f(flow_vec * dt_ev * (ev.polarity ? 1 : -1));
+      nu_innovation = C_th_ - (dh_dg.t() * gm)(0, 0);
+    }
+    else
+    {
+      // Use the event rate as measurement function (Kim, BMCV 2014)
+      dh_dg = cv::Matx21f(flow_vec / (C_th_ * (ev.polarity ? 1 : -1)));
+      nu_innovation = 1.0 / dt_ev - (dh_dg.t() * gm)(0, 0);
+    }
 
+    cv::Matx21f Pg_dhdg = Pg * dh_dg;
+    const float S_covar_innovation = var_R_mapping_ + (dh_dg.t() * Pg_dhdg)(0, 0);
+    cv::Matx21f Kalman_gain = (1.f / S_covar_innovation) * Pg_dhdg;
 
     // Update gradient (state) and covariance
     gm += Kalman_gain * nu_innovation;
-    Pg -= Kalman_gain * s * Kalman_gain.t();
+    Pg -= Pg_dhdg * Kalman_gain.t();
 
     // debuging
     if(extra_log_debugging)
@@ -82,10 +92,10 @@ namespace dvs_mosaic
           << Pg << std::endl;
       ofs << "nu_innovation: " << nu_innovation << std::endl;
       ofs << "dh/dg: [" << dh_dg(0, 0) << ", " << dh_dg(0, 1) << "]" << std::endl;
-      ofs << "s: " << s << std::endl;
+      ofs << "s: " << S_covar_innovation << std::endl;
       ofs << "Kalman_gain: " << Kalman_gain << std::endl;
       ofs << "gm+: " << Kalman_gain * nu_innovation << std::endl;
-      ofs << "pg-: " << Kalman_gain * s * Kalman_gain.t() << std::endl;
+      ofs << "pg-: " << Kalman_gain * S_covar_innovation * Kalman_gain.t() << std::endl;
       if (count == 200)
         ofs.close();
     }
@@ -93,7 +103,6 @@ namespace dvs_mosaic
 
     // Store updated values of grad_map_ and grad_map_covar_ at corresponding pixel
     grad_map_.at<cv::Vec2f>(pm) = cv::Vec2f(gm(0, 0), gm(1, 0));
-    grad_map_covar_.at<cv::Vec3f>(pm) = cv::Vec3f(Pg(0, 0), Pg(0, 1), Pg(1, 1));
-
+    grad_map_covar_.at<cv::Vec3f>(pm) = cv::Vec3f(Pg(0, 0), 0.5f*(Pg(0, 1)+Pg(1, 0)), Pg(1, 1));
   }
 }
