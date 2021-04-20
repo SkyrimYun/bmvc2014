@@ -2,3 +2,5 @@ build/
 logs/
 devel/
 .catkin_tools/
+dvs_displayer/
+minkindr/
