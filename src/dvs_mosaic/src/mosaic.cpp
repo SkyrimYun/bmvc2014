@@ -20,6 +20,7 @@ namespace dvs_mosaic
   {
     nh_private.param<int>("num_events_update_", num_events_update_, 1000);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
+    nh_private.param<bool>("display_accuracy_", display_accuracy_, true);
     nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
     nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4); // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
@@ -28,12 +29,15 @@ namespace dvs_mosaic
     nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
+    nh_private.param<bool>("use_partial_mosaic_", use_partial_mosaic_, true);
+    nh_private.param<int>("partial_mosaic_dur_", partial_mosaic_dur_, 5);
     nh_private.param<bool>("use_grad_thres_", use_grad_thres_, true);
     nh_private.param<double>("grad_thres_", grad_thres_, 1);
     nh_private.param<bool>("use_polygon_thres_", use_polygon_thres_, true);
     nh_private.param<double>("tracking_area_percent_", tracking_area_percent_, 0.75);
     nh_private.param<bool>("use_bright_thres_", use_bright_thres_, true);
     nh_private.param<double>("bright_thres_", bright_thres_, 0.15);
+    
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
@@ -112,7 +116,7 @@ namespace dvs_mosaic
 
     if (tracker_standalone_)
     {
-      // Load mosaic image from the result of the mapping part
+     
       // FILE *pFile;
       // pFile = fopen("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_image.bin", "rb");
       // // read image size from file
@@ -125,8 +129,40 @@ namespace dvs_mosaic
       // mosaic_img_ = cv::Mat::zeros(mosaic_size_, CV_32FC1);
       // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
       // fclose(pFile);
-      cv::FileStorage fr1("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml", cv::FileStorage::READ);
+
+      std::string mosaic_path;
+      std::string mosaic_recons_path;
+      if (!use_partial_mosaic_)
+      {
+        mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic.yml";
+        mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml";
+      }
+      else
+      {
+        if(partial_mosaic_dur_==1)
+        {
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_01s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_01s.yml";
+        }
+        else if(partial_mosaic_dur_==3)
+        {
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_03s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_03s.yml";
+        }
+        else if (partial_mosaic_dur_ == 5)
+        {
+          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial_05s.yml";
+          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_partial_05s.yml";
+        }
+      }
+
+      // Load mosaic image from the result of the mapping part
+      cv::FileStorage fr1(mosaic_path, cv::FileStorage::READ);
       fr1["mosaic map"] >> mosaic_img_;
+
+      // Load reconstructed image for visualization
+      cv::FileStorage fr2(mosaic_recons_path, cv::FileStorage::READ);
+      fr2["mosaic recons map"] >> mosaic_img_recons_;
 
       // Compute derivate of the map
       cv::Mat grad_map_x, grad_map_y;
@@ -139,10 +175,6 @@ namespace dvs_mosaic
       channels.emplace_back(grad_map_x);
       channels.emplace_back(grad_map_y);
       cv::merge(channels, grad_map_);
-
-      // Load reconstructed image for visualization
-      cv::FileStorage fr2("/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons.yml", cv::FileStorage::READ);
-      fr2["mosaic recons map"] >> mosaic_img_recons_;
      
     }
   }
@@ -167,56 +199,61 @@ namespace dvs_mosaic
     pose_pub_.shutdown();
     pose_cop_pub_.shutdown();
 
-    std::vector<double> times_gt;
-    std::vector<double> a1_gt;
-    std::vector<double> a2_gt;
-    std::vector<double> a3_gt;
-    for (auto &p : poses_)
+    // display final accuracy graph
+    if(display_accuracy_)
     {
-      times_gt.push_back(p.first.toSec());
-      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-      a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-      a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-      a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+      std::vector<double> times_gt;
+      std::vector<double> a1_gt;
+      std::vector<double> a2_gt;
+      std::vector<double> a3_gt;
+      for (auto &p : poses_)
+      {
+        times_gt.push_back(p.first.toSec());
+        Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+        a1_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+        a2_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+        a3_gt.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+      }
+
+      matplotlibcpp::figure();
+      matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
+      matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
+      matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
+
+      std::vector<double> times_est;
+      std::vector<double> a1_est;
+      std::vector<double> a2_est;
+      std::vector<double> a3_est;
+      for (auto &p : poses_est_)
+      {
+        times_est.push_back(p.first.toSec());
+        Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
+        a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
+        a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
+        a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+      }
+
+      matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
+      matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
+      matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
+
+      matplotlibcpp::xlabel("time");
+      matplotlibcpp::ylabel("angle [deg]");
+      matplotlibcpp::title("wrapped angles vs time  RMSE: " + std::to_string(rmse));
+      matplotlibcpp::legend();
+      matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
+      matplotlibcpp::show();
+
+      matplotlibcpp::figure();
+      matplotlibcpp::plot(times_est, pose_covar_est_, "b");
+      matplotlibcpp::xlabel("time");
+      matplotlibcpp::ylabel("[deg]");
+      matplotlibcpp::title("sqrt(Trace of the state covariance)");
+      matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
+      matplotlibcpp::show();
     }
 
-    matplotlibcpp::figure();
-    matplotlibcpp::named_plot("true theta_1", times_gt, a1_gt, "r--");
-    matplotlibcpp::named_plot("true theta_2", times_gt, a2_gt, "b--");
-    matplotlibcpp::named_plot("true theta_3", times_gt, a3_gt, "y--");
-
-    std::vector<double> times_est;
-    std::vector<double> a1_est;
-    std::vector<double> a2_est;
-    std::vector<double> a3_est;
-    for (auto &p : poses_est_)
-    {
-      times_est.push_back(p.first.toSec());
-      Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-      a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-      a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-      a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
-    }
-
-    matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
-    matplotlibcpp::named_plot("esti theta_2", times_est, a2_est, "b");
-    matplotlibcpp::named_plot("esti theta_3", times_est, a3_est, "y");
-
-    matplotlibcpp::xlabel("time");
-    matplotlibcpp::ylabel("angle [deg]");
-    matplotlibcpp::title("wrapped angles vs time");
-    matplotlibcpp::legend();
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
-    matplotlibcpp::show();
-
-    matplotlibcpp::figure();
-    matplotlibcpp::plot(times_est, pose_covar_est_, "b");
-    matplotlibcpp::xlabel("time");
-    matplotlibcpp::ylabel("[deg]");
-    matplotlibcpp::title("sqrt(Trace of the state covariance)");
-    matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
-    matplotlibcpp::show();
-
+    
     // save binary image
     if (!tracker_standalone_)
     {

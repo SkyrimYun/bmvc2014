@@ -75,6 +75,9 @@ private:
 
   const bool visualize = true;
   const bool extra_log_debugging = true;
+  bool display_accuracy_;
+  bool use_partial_mosaic_;
+  int partial_mosaic_dur_;
 
   // Mapping / mosaicing
   int num_packet_reconstrct_mosaic_;
