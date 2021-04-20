@@ -323,7 +323,7 @@ namespace dvs_mosaic
       // initilize rotation vector with ground truth
       if (packet_number < init_packet_num_ && !tracker_standalone_)
       {
-        VLOG(1) << "using GT value";
+        VLOG(2) << "using GT value";
         cv::Rodrigues(Rot_gt, rot_vec_);
       }
 
