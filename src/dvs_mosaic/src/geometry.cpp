@@ -24,10 +24,13 @@ void Mosaic::precomputeBearingVectors()
   VLOG(2) << "End precomputeBearingVectors " << precomputed_bearing_vectors_.size();
 }
 
-
 /**
 * \brief Projects a 3D point according to equirectangular model
 * \note Used for 360 degrees panoramic cameras that outputs a full panorama frame
+* \param pt_3d input 3D point
+* \param pt_on_mosaic output 2D point
+* \param calculate_d2d3 whether to calculate d2d3 matrix for following Jacobian calculation
+* \return d2d3 matrix or null if not required
 */
 cv::Mat Mosaic::project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3)
 {

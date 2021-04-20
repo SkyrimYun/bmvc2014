@@ -6,62 +6,71 @@
 namespace dvs_mosaic
 {
 
-/**
-* \brief Compute the map's brightness corresponding to an event and rotation
+  /**
+* \brief Compute the map's brightness and gradient corresponding to an event and rotation
+  * \param pm mosaic map pixel location
+  * \param mode 0 = brightness; 1 = x_gradient; 2 = y_gradient
+  * \return brightness or gradient value
 */
-double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
-{
-  // Get map intensity at that map point
-  double val = 0;                 // default
-  const int ic = pm.x, ir = pm.y; // integer position
-  if (1 <= ir && ir < mosaic_height_ - 2 && 1 <= ic && ic < mosaic_width_ - 2)
+  double Mosaic::getMapBrightnessAt(const cv::Point2f &pm, int mode)
   {
-    // "Nearest neighbor" interpolation
-    //val = mosaic_img_.at<float>(ir, ic);
+    // adopt biliner interpolation
+    double val = 0;                 // default
+    const int ic = pm.x, ir = pm.y; // integer position
+    if (1 <= ir && ir < mosaic_height_ - 2 && 1 <= ic && ic < mosaic_width_ - 2)
+    {
+      // "Nearest neighbor" interpolation
+      //val = mosaic_img_.at<float>(ir, ic);
 
-    // Bilinear interpolation
-    double dx = pm.x - ic;
-    double dy = pm.y - ir;
-    switch (mode)
-    {
-    case 0:
-    {
-      val += mosaic_img_.at<float>(ir, ic) * (1 - dx) * (1 - dy);
-      val += mosaic_img_.at<float>(ir + 1, ic) * (1 - dx) * dy;
-      val += mosaic_img_.at<float>(ir, ic + 1) * dx * (1 - dy);
-      val += mosaic_img_.at<float>(ir + 1, ic + 1) * dx * dy;
-      break;
+      // Bilinear interpolation
+      double dx = pm.x - ic;
+      double dy = pm.y - ir;
+      switch (mode)
+      {
+      case 0:
+      {
+        // brightness
+        val += mosaic_img_.at<float>(ir, ic) * (1 - dx) * (1 - dy);
+        val += mosaic_img_.at<float>(ir + 1, ic) * (1 - dx) * dy;
+        val += mosaic_img_.at<float>(ir, ic + 1) * dx * (1 - dy);
+        val += mosaic_img_.at<float>(ir + 1, ic + 1) * dx * dy;
+        break;
+      }
+      case 1:
+      {
+        // x gradient
+        val += grad_map_.at<cv::Vec2f>(ir, ic)[0] * (1 - dx) * (1 - dy);
+        val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[0] * (1 - dx) * dy;
+        val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[0] * dx * (1 - dy);
+        val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[0] * dx * dy;
+        break;
+      }
+      case 2:
+      {
+        // y gradient
+        val += grad_map_.at<cv::Vec2f>(ir, ic)[1] * (1 - dx) * (1 - dy);
+        val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[1] * (1 - dx) * dy;
+        val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[1] * dx * (1 - dy);
+        val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[1] * dx * dy;
+        break;
+      }
+      default:
+        LOG(FATAL) << "Undefined map type";
+      }
     }
-    case 1:
+    else
     {
-      val += grad_map_.at<cv::Vec2f>(ir, ic)[0] * (1 - dx) * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[0] * (1 - dx) * dy;
-      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[0] * dx * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[0] * dx * dy;
-      break;
+      //LOG(FATAL) << mode << "boundary out range [" << ic << ", " << ir << "]";
     }
-    case 2:
-    {
-      val += grad_map_.at<cv::Vec2f>(ir, ic)[1] * (1 - dx) * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic)[1] * (1 - dx) * dy;
-      val += grad_map_.at<cv::Vec2f>(ir, ic + 1)[1] * dx * (1 - dy);
-      val += grad_map_.at<cv::Vec2f>(ir + 1, ic + 1)[1] * dx * dy;
-      break;
-    }
-    default:
-      LOG(FATAL) << "Undefined map type";
-    }
-  }
-  else
-  {
-    //LOG(FATAL) << mode << "boundary out range [" << ic << ", " << ir << "]";
-  }
-  return val;
+    return val;
 }
 
 /**
 * \brief Compute the map's brightness increment (contrast) corresponding to an event
 * and two rotations (this event's rotation and the previous one)
+* \param pm point based on current rotation
+* \param pm_prev point based on previous rotation
+* \return contrast
 */
 double Mosaic::computePredictedConstrastOfEvent(
     const cv::Point2f &pm,
@@ -75,23 +84,6 @@ double Mosaic::computePredictedConstrastOfEvent(
   // Compute the prediction of C_th
   const double predicted_contrast = (brightnessM_pm - brightnessM_pm_prev);
 
-  // if (abs(brightnessM_pm)<0.1||abs(brightnessM_pm_prev)<0.1)
-  // {
-  //   static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/bright_val_log", std::ofstream::trunc);
-  //   static int count4 = 0;
-  //   ofs << "###########################################" << std::endl;
-  //   ofs << "packet number: " << packet_number << std::endl;
-  //   ofs << count4++ << std::endl;
-  //   ofs << "pm: " << std::endl;
-  //   ofs << pm << std::endl;
-  //   ofs << "pm previous:" << std::endl;
-  //   ofs << pm_prev << std::endl;
-  //   ofs << "brightness pm: " << brightnessM_pm << std::endl;
-  //   ofs << "brightness pm_prev: " << brightnessM_pm_prev << std::endl;
-  //   if (count4 == 50000)
-  //     ofs.close();
-  // }
-
   VLOG(2) << "predicted_contrast = " << predicted_contrast;
 
   if (use_bright_thres_ && (abs(brightnessM_pm) < bright_thres_ || abs(brightnessM_pm_prev) < bright_thres_))
@@ -101,9 +93,11 @@ double Mosaic::computePredictedConstrastOfEvent(
 }
 
 /**
- * \brief Compute the predicted contrast (on the mosaic map) corresponding to an event
- * and two given rotations.
- * Compute also its numerical derivative (using forward differences)
+ * \brief Compute analytic derivative (Jacobine)
+ * \param pm point based on current rotation
+ * \param dpm_d3d matrix for Jac calculation
+ * \param rotated_bvec 3D point before projection on mosaic map
+ * \param Jac output Jacobine matrix
  */
 void Mosaic::computeDeriv(
     const cv::Point2f pm,
@@ -129,7 +123,5 @@ void Mosaic::computeDeriv(
   cv::Vec3d rotated_bvec_v(rotated_bvec);
   cv::Vec3d temp1 = rotated_bvec_v.cross(cv::Vec3d(Jac));
   Jac = cv::Mat(temp1).t() * matrix_factor.t();
-  
-  
 }
 }

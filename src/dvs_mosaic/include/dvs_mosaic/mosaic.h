@@ -49,7 +49,7 @@ private:
   void publishMap();
   void publishPose();
   ros::Time time_packet_;
-  image_transport::Publisher pose_cop_pub_;
+  image_transport::Publisher pose_cop_pub_; // For compare estimated pose and GT pose on tracker standalone mode
 
 
   // Sliding window of events
@@ -73,11 +73,12 @@ private:
   double var_R_tracking_;
   double C_th_;
 
+  // Viusalization & Debugging setting
   const bool visualize = true;
   const bool extra_log_debugging = true;
   bool display_accuracy_;
-  bool use_partial_mosaic_;
-  int partial_mosaic_dur_;
+  bool use_partial_mosaic_; // set true to enable partial mosaic map intput on tracker standalone mode
+  int partial_mosaic_dur_;  // 1 -> 0.1s; 3 -> 0.3s; 5 -> 0.5s
 
   // Mapping / mosaicing
   int num_packet_reconstrct_mosaic_;
@@ -91,13 +92,12 @@ private:
   double gaussian_blur_sigma_;
   bool use_gaussian_blur_;
 
-  cv::Matx33d Rot_gt;
-
-  // packet
+  // Packet thresholds and statistics
   unsigned int packet_number = 0;
   int skip_count_polygon_;
   int skip_count_grad_;
   int skip_count_bright_;
+  cv::Matx33d Rot_gt;
   int init_packet_num_;
   std::vector<Sophus::SO3d> recorded_pose_gt_;
   std::vector<Sophus::SO3d> recorded_pose_est_;
@@ -107,8 +107,8 @@ private:
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
-  std::vector<cv::Point> tracking_polygon_;
-  bool tracker_standalone_;
+  std::vector<cv::Point> tracking_polygon_; // 4 points polygon for tracking area limitation
+  bool tracker_standalone_; // set true to enable independent tracker operation
   bool use_grad_thres_;
   double grad_thres_;
   bool use_polygon_thres_;
@@ -124,24 +124,30 @@ private:
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
   void precomputeBearingVectors();
 
+  // Calculate Tracking Polygon pixel location
   void calculatePacketPoly();
+
   void processEventForTrack(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
 
+  // Obtain brightness or gradient value on mosiac map
   const int get_mosaic_map = 0;
   const int get_grad_x = 1;
   const int get_grad_y = 2;
   double getMapBrightnessAt(const cv::Point2f &pm, int mode);
 
+  // Compuate constrast
   double computePredictedConstrastOfEvent(
       const cv::Point2f &pm,
       const cv::Point2f &pm_prev);
 
+  // Compute derivative
   void computeDeriv(
       const cv::Point2f pm,
       const cv::Mat dpm_d3d,
       const cv::Point3d rotated_bvec,
       cv::Mat &Jac);
 
+  // Collect estimated and ground truth pose for rmse 
   void dataCollect();
 };
 

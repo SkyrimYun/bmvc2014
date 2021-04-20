@@ -18,6 +18,7 @@ namespace dvs_mosaic
   Mosaic::Mosaic(ros::NodeHandle &nh, ros::NodeHandle nh_private)
       : nh_(nh), pnh_("~")
   {
+    // Load parameters
     nh_private.param<int>("num_events_update_", num_events_update_, 1000);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
     nh_private.param<bool>("display_accuracy_", display_accuracy_, true);
@@ -114,6 +115,8 @@ namespace dvs_mosaic
     VLOG(1) << "Apply Brightness Threshold? " << (use_bright_thres_ ? "True" : "False;") << " Threshold: " << bright_thres_;
     VLOG(1) << "Apply Gaussian Blur to reconsturcted map? " << (use_gaussian_blur_ ? "True" : "False;") << " sigma: " << gaussian_blur_sigma_;
 
+
+    // Load mosaic or partial mosaic map if in tracker standalone mode
     if (tracker_standalone_)
     {
      
@@ -181,6 +184,7 @@ namespace dvs_mosaic
 
   Mosaic::~Mosaic()
   {
+    // Calculate RMSE (Root Mean Square Error)
     double rmse = 0;
     for (int i = 0; i < recorded_pose_est_.size(); i++)
     {
@@ -191,6 +195,7 @@ namespace dvs_mosaic
     rmse = sqrt(rmse);
     VLOG(1) << "RMSE = " << rmse;
 
+    // Shut down publishers
     time_map_pub_.shutdown();
     mosaic_pub_.shutdown();
     mosaic_gradx_pub_.shutdown();
@@ -199,7 +204,7 @@ namespace dvs_mosaic
     pose_pub_.shutdown();
     pose_cop_pub_.shutdown();
 
-    // display final accuracy graph
+    // Display final accuracy graph
     if(display_accuracy_)
     {
       std::vector<double> times_gt;
@@ -253,8 +258,7 @@ namespace dvs_mosaic
       matplotlibcpp::show();
     }
 
-    
-    // save binary image
+    // Save binary image
     if (!tracker_standalone_)
     {
       std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_partial.yml";
@@ -327,11 +331,13 @@ namespace dvs_mosaic
         cv::Rodrigues(Rot_gt, rot_vec_);
       }
 
+      // Collect the estimated and GT pose in this packet for RMSE calculation
       dataCollect();
 
+      // Calculate 4 vertex of the polygon for the packet events
       calculatePacketPoly();
 
-      // EKF propagation equations for state and covariance
+      // EKF propagation equations for tracker and mapper
       int packet_events_count = 0;
       skip_count_polygon_ = 0;
       skip_count_grad_ = 0;
@@ -346,6 +352,7 @@ namespace dvs_mosaic
         cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
         map_of_last_rotations_[idx] = Rot_cur;
         const double t_prev = time_map_.at<double>(ev.y, ev.x);
+        // Skip uninitialized pixel on mosaic map
         if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
         {
           VLOG(3) << "Uninitialized event. Continue";
@@ -353,6 +360,7 @@ namespace dvs_mosaic
           continue;
         }
 
+        // Call tracker and mapper
         if(tracker_standalone_)
           processEventForTrack(ev, Rot_prev);
         else
@@ -362,10 +370,10 @@ namespace dvs_mosaic
           processEventForMap(ev, Rot_prev);
         }
        
-
         ++packet_events_count;
       }
 
+      // Reconstruct Mosiac map from gradients
       if (packet_number % num_packet_reconstrct_mosaic_ == 0 && !tracker_standalone_)
       {
         VLOG(1) << "---- Reconstruct Mosaic ----";
@@ -377,8 +385,7 @@ namespace dvs_mosaic
       if(!tracker_standalone_)
         publishMap();
 
-      //calculatePacketPoly();
-
+      // Show how many events have been skipped by thresholds
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
       VLOG(1) << "skip count brightness: " << skip_count_bright_;
@@ -422,8 +429,12 @@ namespace dvs_mosaic
     }
   }
 
+  /**
+  * \brief Function to collect estimated pose trajectory for visualization and RMSE calculation
+  */
   void Mosaic::dataCollect()
   {
+    // Transfer cv::Matx into Eigen representation
     cv::Matx33d Rot_interp;
     cv::Rodrigues(rot_vec_, Rot_interp);
     Eigen::Matrix3d R_eigen_est;
@@ -432,6 +443,7 @@ namespace dvs_mosaic
       {
         R_eigen_est(i, j) = Rot_interp(i, j);
       }
+    // Recorad estimated pose and covariance
     poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), Eigen::Quaterniond(R_eigen_est))});
     pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
     Eigen::Matrix3d R_eigen_gt;
@@ -440,6 +452,7 @@ namespace dvs_mosaic
       {
         R_eigen_gt(i, j) = Rot_gt(i, j);
       }
+    // record trajectory
     recorded_pose_gt_.push_back(Sophus::SO3d(R_eigen_gt));
     recorded_pose_est_.push_back(Sophus::SO3d(R_eigen_est));
   }
