@@ -237,10 +237,10 @@ namespace dvs_mosaic
       for (auto &p : poses_est_)
       {
         times_est.push_back(p.first.toSec());
-        Eigen::AngleAxisd rot_vec_gt(p.second.getEigenQuaternion());
-        a1_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[0] * 180 / M_PI);
-        a2_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[1] * 180 / M_PI);
-        a3_est.push_back(rot_vec_gt.angle() * rot_vec_gt.axis()[2] * 180 / M_PI);
+        Eigen::AngleAxisd rot_vec_est(p.second.getEigenQuaternion());
+        a1_est.push_back(rot_vec_est.angle() * rot_vec_est.axis()[0] * 180 / M_PI);
+        a2_est.push_back(rot_vec_est.angle() * rot_vec_est.axis()[1] * 180 / M_PI);
+        a3_est.push_back(rot_vec_est.angle() * rot_vec_est.axis()[2] * 180 / M_PI);
       }
 
       matplotlibcpp::named_plot("esti theta_1", times_est, a1_est, "r");
