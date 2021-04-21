@@ -32,7 +32,7 @@ namespace dvs_mosaic
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
     nh_private.param<bool>("use_partial_mosaic_", use_partial_mosaic_, true);
-    nh_private.param<int>("partial_mosaic_dur_", partial_mosaic_dur_, 5);
+    nh_private.param<double>("partial_mosaic_dur_", partial_mosaic_dur_, 0.5);
     nh_private.param<bool>("use_grad_thres_", use_grad_thres_, true);
     nh_private.param<double>("grad_thres_", grad_thres_, 1);
     nh_private.param<bool>("use_polygon_thres_", use_polygon_thres_, true);
@@ -147,17 +147,17 @@ namespace dvs_mosaic
       }
       else
       {
-        if(partial_mosaic_dur_==1)
+        if(partial_mosaic_dur_ == 0.1)
         {
           mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_01s.yml";
           mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_01s.yml";
         }
-        else if(partial_mosaic_dur_==3)
+        else if(partial_mosaic_dur_ == 0.3)
         {
           mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_03s.yml";
           mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_03s.yml";
         }
-        else if (partial_mosaic_dur_ == 5)
+        else if (partial_mosaic_dur_ == 0.5)
         {
           mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_05s.yml";
           mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_05s.yml";

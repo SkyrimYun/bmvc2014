@@ -78,7 +78,7 @@ private:
   const bool extra_log_debugging = true;
   bool display_accuracy_;
   bool use_partial_mosaic_; // set true to enable partial mosaic map intput on tracker standalone mode
-  int partial_mosaic_dur_;  // 1 -> 0.1s; 3 -> 0.3s; 5 -> 0.5s
+  double partial_mosaic_dur_;  // second
 
   // Mapping / mosaicing
   int num_packet_reconstrct_mosaic_;
