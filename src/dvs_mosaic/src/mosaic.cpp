@@ -294,7 +294,8 @@ namespace dvs_mosaic
     {
       // Initialize time map and last rotation map
       time_map_ = cv::Mat(sensor_height_, sensor_width_, CV_64FC1, cv::Scalar(-0.01));
-      map_of_last_rotations_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
+      map_of_last_rotations_tracker_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
+      map_of_last_rotations_mapper_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
     }
 
     // Multiple calls to the tracker to consume the events in one message
@@ -342,41 +343,64 @@ namespace dvs_mosaic
       // Calculate 4 vertex of the polygon for the packet events
       calculatePacketPoly();
 
-      // EKF propagation equations for tracker and mapper
+      // Call the Tracker
       int packet_events_count = 0;
       skip_count_polygon_ = 0;
       skip_count_grad_ = 0;
       skip_count_bright_ = 0;
       // Loop through the events
-      for (const dvs_msgs::Event &ev : events_subset_)
+      if(tracker_standalone_ || packet_number>init_packet_num_)
       {
-        // update rotation map
-        const int idx = ev.y * sensor_width_ + ev.x;
+        for (const dvs_msgs::Event &ev : events_subset_)
+        {
+          // update rotation map
+          const int idx = ev.y * sensor_width_ + ev.x;
+          const cv::Matx33d Rot_cur;
+          cv::Rodrigues(rot_vec_, Rot_cur);
+          cv::Matx33d Rot_prev = map_of_last_rotations_tracker_.at(idx);
+          map_of_last_rotations_tracker_[idx] = Rot_cur;
+          // Skip uninitialized pixel on mosaic map
+          if (std::isnan(Rot_prev(0, 0)))
+          {
+            VLOG(3) << "Uninitialized event. Continue";
+            continue;
+          }
+
+          processEventForTrack(ev, Rot_prev);
+
+          ++packet_events_count;
+        }
+      }
+      // Show how many events have been skipped by thresholds
+      VLOG(1) << "skip count gradient: " << skip_count_grad_;
+      VLOG(1) << "skip count polygon: " << skip_count_polygon_;
+      VLOG(1) << "skip count brightness: " << skip_count_bright_;
+
+      
+      // Call the Mapper
+      if(!tracker_standalone_)
+      {
         const cv::Matx33d Rot_cur;
         cv::Rodrigues(rot_vec_, Rot_cur);
-        cv::Matx33d Rot_prev = map_of_last_rotations_.at(idx);
-        map_of_last_rotations_[idx] = Rot_cur;
-        const double t_prev = time_map_.at<double>(ev.y, ev.x);
-        // Skip uninitialized pixel on mosaic map
-        if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
+        for (const dvs_msgs::Event &ev : events_subset_)
         {
-          VLOG(3) << "Uninitialized event. Continue";
-          time_map_.at<double>(ev.y, ev.x) = ev.ts.toSec();
-          continue;
-        }
+          // update rotation map
+          const int idx = ev.y * sensor_width_ + ev.x;
+          cv::Matx33d Rot_prev = map_of_last_rotations_mapper_.at(idx);
+          map_of_last_rotations_mapper_[idx] = Rot_cur;
+          const double t_prev = time_map_.at<double>(ev.y, ev.x);
+          // Skip uninitialized pixel on mosaic map
+          if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
+          {
+            VLOG(3) << "Uninitialized event. Continue";
+            time_map_.at<double>(ev.y, ev.x) = ev.ts.toSec();
+            continue;
+          }
 
-        // Call tracker and mapper
-        if(tracker_standalone_)
-          processEventForTrack(ev, Rot_prev);
-        else
-        {
-          if (packet_number > init_packet_num_)
-            processEventForTrack(ev, Rot_prev);
           processEventForMap(ev, Rot_prev);
         }
-       
-        ++packet_events_count;
       }
+     
 
       // Reconstruct Mosiac map from gradients
       if (packet_number % num_packet_reconstrct_mosaic_ == 0 && !tracker_standalone_)
@@ -390,10 +414,6 @@ namespace dvs_mosaic
       if(!tracker_standalone_)
         publishMap();
 
-      // Show how many events have been skipped by thresholds
-      VLOG(1) << "skip count gradient: " << skip_count_grad_;
-      VLOG(1) << "skip count polygon: " << skip_count_polygon_;
-      VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
       // Debugging
       if (extra_log_debugging)
@@ -405,12 +425,6 @@ namespace dvs_mosaic
         ofs << "###########################################" << std::endl;
         ofs << "packet number: " << packet_number << std::endl;
         ofs << "packet count: " << packet_events_count << std::endl;
-        // ofs << "kalman gain packet: " << std::endl;
-        // ofs << kalman_gain_packet << std::endl;
-        // ofs << "inno packet: " << inno_packet.rows << ", " << inno_packet.cols << std::endl;
-        // ofs << inno_packet << std::endl;
-        // ofs << "jacb packet: " << jacb_packet.rows << ", " << jacb_packet.cols << std::endl;
-        // ofs << jacb_packet << std::endl;
         ofs << "GT rotation vec: [" << rot_vec_gt(0, 0) << ", " << rot_vec_gt(1, 0) << ", " << rot_vec_gt(2, 0) << std::endl;
         ofs << "rotation vec:    [" << rot_vec_.at<double>(0, 0) << ", " << rot_vec_.at<double>(1, 0) <<", "<< rot_vec_.at<double>(2, 0) << std::endl;
         count2++;

@@ -84,7 +84,8 @@ private:
   int num_packet_reconstrct_mosaic_;
   int idx_first_ev_map_;  // index of first event of processing window
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
-  std::vector<cv::Matx33d> map_of_last_rotations_;
+  std::vector<cv::Matx33d> map_of_last_rotations_tracker_;
+  std::vector<cv::Matx33d> map_of_last_rotations_mapper_;
   cv::Mat grad_map_, grad_map_covar_, mosaic_img_, mosaic_img_recons_, pano_ev;
   std::map<ros::Time, Transformation> poses_, poses_est_;
   std::vector<double> pose_covar_est_;
