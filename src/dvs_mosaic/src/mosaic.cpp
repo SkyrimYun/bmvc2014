@@ -337,9 +337,6 @@ namespace dvs_mosaic
         cv::Rodrigues(Rot_gt, rot_vec_);
       }
 
-      // Collect the estimated and GT pose in this packet for RMSE calculation
-      dataCollect();
-
       // Calculate 4 vertex of the polygon for the packet events
       calculatePacketPoly();
 
@@ -376,13 +373,32 @@ namespace dvs_mosaic
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
       VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
-      
+      // Collect the estimated and GT pose in this packet for RMSE calculation
+      poseCollect();
+
       // Call the Mapper
-      if(!tracker_standalone_)
+      if(!tracker_standalone_ && packet_number!=1)
       {
-        const cv::Matx33d Rot_cur;
-        cv::Rodrigues(rot_vec_, Rot_cur);
-        for (const dvs_msgs::Event &ev : events_subset_)
+        
+        std::map<ros::Time, dvs_mosaic::Transformation>::iterator it_next = poses_est_.find(time_packet_);
+        Eigen::Quaterniond q_next = it_next->second.getEigenQuaternion();
+        Eigen::Quaterniond q_cur = std::prev(it_next, 1)->second.getEigenQuaternion();
+        Eigen::Quaterniond q_prev = std::prev(it_next, 2)->second.getEigenQuaternion();
+        double w = (q_cur.w() + q_prev.w() + q_next.w()) / 3.0;
+        double x = (q_cur.x() + q_prev.x() + q_next.x()) / 3.0;
+        double y = (q_cur.y() + q_prev.y() + q_next.y()) / 3.0;
+        double z = (q_cur.z() + q_prev.z() + q_next.z()) / 3.0;
+
+        Eigen::Quaterniond q_avg(w, x, y, z);
+
+        cv::Matx33d Rot_cur;
+        Eigen::Matrix3d Rot_avg_eigen = q_avg.toRotationMatrix();
+        for (int i = 0; i < 3; i++)
+          for (int j = 0; j < 3; j++)
+          {
+            Rot_cur(i, j) = Rot_avg_eigen(i, j);
+          }
+        for (const dvs_msgs::Event &ev : events_subset_prev_)
         {
           // update rotation map
           const int idx = ev.y * sensor_width_ + ev.x;
@@ -397,7 +413,7 @@ namespace dvs_mosaic
             continue;
           }
 
-          processEventForMap(ev, Rot_prev);
+          processEventForMap(ev, Rot_cur, Rot_prev);
         }
       }
      
@@ -444,6 +460,7 @@ namespace dvs_mosaic
       }
 
       // Slide
+      events_subset_prev_ = events_subset_;
       events_.erase(events_.begin(), events_.begin() + num_events_update_);
     }
   }
@@ -451,7 +468,7 @@ namespace dvs_mosaic
   /**
   * \brief Function to collect estimated pose trajectory for visualization and RMSE calculation
   */
-  void Mosaic::dataCollect()
+  void Mosaic::poseCollect()
   {
     // Transfer cv::Matx into Eigen representation
     cv::Matx33d Rot_interp;

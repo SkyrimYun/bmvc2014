@@ -1,7 +1,7 @@
 <launch>
 
 
-  <arg name="only_use_tracker" value="true"/>
+  <arg name="only_use_tracker" value="false"/>
   <arg name="partial_mosaic_dur" value="0.5"/>
   <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u $(arg partial_mosaic_dur) $(find dvs_mosaic)/data/synth1/events.bag" />
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
@@ -11,7 +11,7 @@
     <param name="partial_mosaic_dur_"    value="$(arg partial_mosaic_dur)"/>
 
     <param name="mosaic_height_"      value="512"/>
-    <param name="init_packet_num_"    value="300"/>
+    <param name="init_packet_num_"    value="200"/>
    
     <param name="num_events_update_"            value="500"/>
     <param name="num_packet_reconstrct_mosaic_" value="25"/>

@@ -55,6 +55,7 @@ private:
   // Sliding window of events
   std::deque<dvs_msgs::Event> events_;
   std::vector<dvs_msgs::Event> events_subset_;
+  std::vector<dvs_msgs::Event> events_subset_prev_;
 
   // Camera
   int sensor_width_, sensor_height_;
@@ -119,7 +120,7 @@ private:
 
   cv::Mat project_EquirectangularProjection(const cv::Point3d &pt_3d, cv::Point2f &pt_on_mosaic, bool calculate_d2d3 = false);
   bool rotationAt(const ros::Time& t_query, cv::Matx33d& Rot_interp);
-  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev);
+  void processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_cur, const cv::Matx33d Rot_prev);
 
   // Precomputed bearing vectors for each camera pixel
   std::vector<cv::Point3d> precomputed_bearing_vectors_;
@@ -149,7 +150,7 @@ private:
       cv::Mat &Jac);
 
   // Collect estimated and ground truth pose for rmse 
-  void dataCollect();
+  void poseCollect();
 };
 
 } // namespace

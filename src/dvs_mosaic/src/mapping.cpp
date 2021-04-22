@@ -11,7 +11,7 @@ namespace dvs_mosaic
   * \param ev the current input event
   * \param Rot_prev previous rotation when the previous event reached the same pixel
   */
-  void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot_prev)
+  void Mosaic::processEventForMap(const dvs_msgs::Event &ev, const cv::Matx33d Rot, const cv::Matx33d Rot_prev)
   {
     const int idx = ev.y * sensor_width_ + ev.x;
 
@@ -24,8 +24,8 @@ namespace dvs_mosaic
     CHECK_GT(dt_ev, 0) << "Non-positive dt_ev"; // Two events at same pixel with same timestamp
 
 
-    const cv::Matx33d Rot;
-    cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
+    // const cv::Matx33d Rot;
+    // cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
 
     // Get map point corresponding to current event
     // hint: call project_EquirectangularProjection
