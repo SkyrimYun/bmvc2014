@@ -28,8 +28,11 @@ namespace dvs_mosaic
     nh_private.param<bool>("measure_contrast_", measure_contrast_, true);
     //nh_private.param<double>("var_R_mapping_", var_R_mapping_, 0.0289);
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
-    nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
+    nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
+    nh_private.param<bool>("average_pose_", average_pose_, true);
+    nh_private.param<int>("average_level_", average_level_, 3);
+
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
     nh_private.param<bool>("use_partial_mosaic_", use_partial_mosaic_, true);
     nh_private.param<double>("partial_mosaic_dur_", partial_mosaic_dur_, 0.5);
@@ -111,10 +114,14 @@ namespace dvs_mosaic
     VLOG(1) << poses_est_.begin()->second;
     VLOG(1) << "Set initial pose... done!";
 
+    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "True" : "False");
+    VLOG(1) << "Init packet number: " << init_packet_num_;
+
     VLOG(1) << "var_process_noise_: " << var_process_noise_;
     VLOG(1) << "var_R_tracking_: " << var_R_tracking_;
     VLOG(1) << "var_R_mapping_: " << var_R_mapping_;
-    VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "True" : "False");
+    VLOG(1) << "Average Pose: " << (average_pose_ ? "True" : "False");
+
     VLOG(1) << "Apply Gradient Threshold? " << (use_grad_thres_ ? "True" : "False;") << " Threshold: " << grad_thres_;
     VLOG(1) << "Apply Polygon Threshold? " << (use_polygon_thres_ ? "True" : "False;") << " Tracking area (percent): " << tracking_area_percent_;
     VLOG(1) << "Apply Brightness Threshold? " << (use_bright_thres_ ? "True" : "False;") << " Threshold: " << bright_thres_;
@@ -333,7 +340,7 @@ namespace dvs_mosaic
       // initilize rotation vector with ground truth
       if (packet_number < init_packet_num_ && !tracker_standalone_)
       {
-        VLOG(2) << "using GT value";
+        VLOG(1) << "using GT value";
         cv::Rodrigues(Rot_gt, rot_vec_);
       }
 
@@ -346,8 +353,8 @@ namespace dvs_mosaic
       skip_count_grad_ = 0;
       skip_count_bright_ = 0;
       // Loop through the events
-      if(tracker_standalone_ || packet_number>init_packet_num_)
-      {
+      // if(tracker_standalone_ || packet_number>init_packet_num_)
+      // {
         for (const dvs_msgs::Event &ev : events_subset_)
         {
           // update rotation map
@@ -367,37 +374,20 @@ namespace dvs_mosaic
 
           ++packet_events_count;
         }
-      }
+      //}
       // Show how many events have been skipped by thresholds
       VLOG(1) << "skip count gradient: " << skip_count_grad_;
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
       VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
       // Collect the estimated and GT pose in this packet for RMSE calculation
-      poseCollect();
+      // Average estimated pose if required
+      cv::Matx33d Rot_cur = poseCollect();
+
 
       // Call the Mapper
       if(!tracker_standalone_ && packet_number!=1)
       {
-        
-        std::map<ros::Time, dvs_mosaic::Transformation>::iterator it_next = poses_est_.find(time_packet_);
-        Eigen::Quaterniond q_next = it_next->second.getEigenQuaternion();
-        Eigen::Quaterniond q_cur = std::prev(it_next, 1)->second.getEigenQuaternion();
-        Eigen::Quaterniond q_prev = std::prev(it_next, 2)->second.getEigenQuaternion();
-        double w = (q_cur.w() + q_prev.w() + q_next.w()) / 3.0;
-        double x = (q_cur.x() + q_prev.x() + q_next.x()) / 3.0;
-        double y = (q_cur.y() + q_prev.y() + q_next.y()) / 3.0;
-        double z = (q_cur.z() + q_prev.z() + q_next.z()) / 3.0;
-
-        Eigen::Quaterniond q_avg(w, x, y, z);
-
-        cv::Matx33d Rot_cur;
-        Eigen::Matrix3d Rot_avg_eigen = q_avg.toRotationMatrix();
-        for (int i = 0; i < 3; i++)
-          for (int j = 0; j < 3; j++)
-          {
-            Rot_cur(i, j) = Rot_avg_eigen(i, j);
-          }
         for (const dvs_msgs::Event &ev : events_subset_prev_)
         {
           // update rotation map
@@ -468,9 +458,9 @@ namespace dvs_mosaic
   /**
   * \brief Function to collect estimated pose trajectory for visualization and RMSE calculation
   */
-  void Mosaic::poseCollect()
+  cv::Matx33d Mosaic::poseCollect()
   {
-    // Transfer cv::Matx into Eigen representation
+    // Transfer current Tracker estimated pose from cv::Matx into Eigen representation
     cv::Matx33d Rot_interp;
     cv::Rodrigues(rot_vec_, Rot_interp);
     Eigen::Matrix3d R_eigen_est;
@@ -479,18 +469,58 @@ namespace dvs_mosaic
       {
         R_eigen_est(i, j) = Rot_interp(i, j);
       }
-    // Recorad estimated pose and covariance
-    poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), Eigen::Quaterniond(R_eigen_est))});
-    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+    Eigen::Quaterniond q_cur(R_eigen_est);
+
+    // Transfer GT pose from EIgen matrix to cv matrix
     Eigen::Matrix3d R_eigen_gt;
     for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++)
       {
         R_eigen_gt(i, j) = Rot_gt(i, j);
       }
-    // record trajectory
-    recorded_pose_gt_.push_back(Sophus::SO3d(R_eigen_gt));
-    recorded_pose_est_.push_back(Sophus::SO3d(R_eigen_est));
-  }
 
+
+    // Average Pose
+    cv::Matx33d Rot_ret;
+    Eigen::Matrix3d Rot_eigen_ret;
+    ;
+    std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
+    if (average_pose_ && ((!tracker_standalone_ && packet_number > init_packet_num_) || (tracker_standalone_ && packet_number>1))) // average poses
+    {
+      //VLOG(1) << "AVERAGE POSE";
+      Eigen::Quaterniond q_prev1 = it_cur->second.getEigenQuaternion();
+      Eigen::Quaterniond q_prev2 = std::next(it_cur, 1)->second.getEigenQuaternion();
+      double w = (q_cur.w() + q_prev1.w() + q_prev2.w()) / 3.0;
+      double x = (q_cur.x() + q_prev1.x() + q_prev2.x()) / 3.0;
+      double y = (q_cur.y() + q_prev1.y() + q_prev2.y()) / 3.0;
+      double z = (q_cur.z() + q_prev1.z() + q_prev2.z()) / 3.0;
+
+      Eigen::Quaterniond q_avg(w, x, y, z);
+      Rot_eigen_ret = q_avg.toRotationMatrix();
+
+      it_cur->second = Transformation(Eigen::Vector3d(0, 0, 0), q_avg);
+      //cv::Rodrigues(Rot_cur, rot_vec_);
+    }
+    else // not average pose; obtain the latest estiamted pose for the mapper
+    {
+      Rot_eigen_ret = it_cur->second.getEigenQuaternion();
+    }
+    //Transfer estimated pose from Eigen matrix to cv matrix
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+      {
+        Rot_ret(i, j) = Rot_eigen_ret(i, j);
+      }
+
+    // Recorad estimated pose and covariance for graph
+    poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), q_cur)});
+    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+
+    // record trajectory for RMSE
+    // possible error here; GT is the current packet value while estimated pose may be from previou packet due to averaging
+    recorded_pose_gt_.push_back(Sophus::SO3d(R_eigen_gt));
+    recorded_pose_est_.push_back(Sophus::SO3d(Rot_eigen_ret));
+
+    return Rot_ret;
+  }
 }

@@ -93,6 +93,8 @@ private:
   void loadPoses();
   double gaussian_blur_sigma_;
   bool use_gaussian_blur_;
+  bool average_pose_;
+  int average_level_;
 
   // Packet thresholds and statistics
   unsigned int packet_number = 0;
@@ -149,8 +151,8 @@ private:
       const cv::Point3d rotated_bvec,
       cv::Mat &Jac);
 
-  // Collect estimated and ground truth pose for rmse 
-  void poseCollect();
+  // Collect estimated and ground truth pose for rmse
+  cv::Matx33d poseCollect();
 };
 
 } // namespace

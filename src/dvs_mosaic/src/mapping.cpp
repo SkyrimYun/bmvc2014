@@ -24,8 +24,8 @@ namespace dvs_mosaic
     CHECK_GT(dt_ev, 0) << "Non-positive dt_ev"; // Two events at same pixel with same timestamp
 
 
-    // const cv::Matx33d Rot;
-    // cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
+    //const cv::Matx33d Rot;
+    //cv::Rodrigues(rot_vec_, Rot); // convert parameter vector to Rotation
 
     // Get map point corresponding to current event
     // hint: call project_EquirectangularProjection

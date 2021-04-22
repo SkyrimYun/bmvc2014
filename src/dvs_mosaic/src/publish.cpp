@@ -12,7 +12,7 @@ namespace dvs_mosaic
 void Mosaic::publishMap()
 {
   // Publish the current map state
-  VLOG(1) << "publishMap()";
+  VLOG(2) << "publishMap()";
 
   if ( time_map_pub_.getNumSubscribers() > 0 )
   {
