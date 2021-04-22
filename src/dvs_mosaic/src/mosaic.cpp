@@ -434,7 +434,7 @@ namespace dvs_mosaic
     while (idx_first_ev_map_ + num_events_map_update_ <= events_.size() && !tracker_standalone_)
     {
 
-      if(average_pose_ && packet_number_mapper_ + 2 != packet_number_tracker_)
+      if(average_pose_ && packet_number_mapper_ + (average_level_/2 + 1) != packet_number_tracker_)
         break;
 
       
@@ -516,19 +516,32 @@ namespace dvs_mosaic
     Eigen::Quaterniond q_cur(R_eigen_est);
 
     // Average Pose
-    if (average_pose_ && ((!tracker_standalone_ && packet_number_tracker_ > init_packet_num_) || (tracker_standalone_ && packet_number_tracker_ > 1))) 
+    if (average_pose_ && ((!tracker_standalone_ && packet_number_tracker_ > init_packet_num_) || (tracker_standalone_ && packet_number_tracker_> average_level_- 2 ))) 
     {
       //VLOG(1) << "AVERAGE POSE";
       std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
-      Eigen::Quaterniond q_prev1 = it_cur->second.getEigenQuaternion();
-      Eigen::Quaterniond q_prev2 = std::next(it_cur, 1)->second.getEigenQuaternion();
-      double w = (q_cur.w() + q_prev1.w() + q_prev2.w()) / 3.0;
-      double x = (q_cur.x() + q_prev1.x() + q_prev2.x()) / 3.0;
-      double y = (q_cur.y() + q_prev1.y() + q_prev2.y()) / 3.0;
-      double z = (q_cur.z() + q_prev1.z() + q_prev2.z()) / 3.0;
+      Eigen::Quaterniond q_prev = it_cur->second.getEigenQuaternion();
+      double w = q_cur.w() + q_prev.w();
+      double x = q_cur.x() + q_prev.x();
+      double y = q_cur.y() + q_prev.y();
+      double z = q_cur.z() + q_prev.z();
+      for (int i = 0; i < average_level_-2; i++)
+      {
+        q_prev = std::next(it_cur, i)->second.getEigenQuaternion();
+        w += q_prev.w();
+        x += q_prev.x();
+        y += q_prev.y();
+        z += q_prev.z();
+      }
+      w /= (double)average_level_;
+      x /= (double)average_level_;
+      y /= (double)average_level_;
+      z /= (double)average_level_;
 
       Eigen::Quaterniond q_avg(w, x, y, z);
 
+      for (int i = 0; i < (average_level_/2 - 1);i++)
+        it_cur++;
       it_cur->second = Transformation(Eigen::Vector3d(0, 0, 0), q_avg);
     }
    
