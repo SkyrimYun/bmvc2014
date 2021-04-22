@@ -82,8 +82,10 @@ private:
   double partial_mosaic_dur_;  // second
 
   // Mapping / mosaicing
+  unsigned int packet_number_mapper_ = 0;
   int num_packet_reconstrct_mosaic_;
-  int idx_first_ev_map_;  // index of first event of processing window
+  int num_events_map_update_;
+  int idx_first_ev_map_;  // index of first event of map processing window
   const double dNaN = std::numeric_limits<double>::quiet_NaN();
   std::vector<cv::Matx33d> map_of_last_rotations_tracker_;
   std::vector<cv::Matx33d> map_of_last_rotations_mapper_;
@@ -97,7 +99,6 @@ private:
   int average_level_;
 
   // Packet thresholds and statistics
-  unsigned int packet_number = 0;
   int skip_count_polygon_;
   int skip_count_grad_;
   int skip_count_bright_;
@@ -107,7 +108,9 @@ private:
   std::vector<Sophus::SO3d> recorded_pose_est_;
 
   // Tracking
-  int num_events_update_;
+  unsigned int packet_number_tracker_ = 0;
+  int num_events_pose_update_;
+  int idx_first_ev_pose_; // index of first event of pose processing window
   cv::Mat rot_vec_;   // state for the tracker
   cv::Mat covar_rot_; // 3x3 covariance matrix
   double var_process_noise_;
@@ -151,8 +154,11 @@ private:
       const cv::Point3d rotated_bvec,
       cv::Mat &Jac);
 
-  // Collect estimated and ground truth pose for rmse
-  cv::Matx33d poseCollect();
+  // Collect estimated pose from tracker
+  void storeEstimatedPose();
+
+  // Obtain current estimated pose for mapper
+  cv::Matx33d getCurPose();
 };
 
 } // namespace

@@ -19,7 +19,8 @@ namespace dvs_mosaic
       : nh_(nh), pnh_("~")
   {
     // Load parameters
-    nh_private.param<int>("num_events_update_", num_events_update_, 1000);
+    nh_private.param<int>("num_events_pose_update_", num_events_pose_update_, 500);
+    nh_private.param<int>("num_events_map_update_", num_events_map_update_, 500);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
     nh_private.param<bool>("display_accuracy_", display_accuracy_, true);
     nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
@@ -59,6 +60,8 @@ namespace dvs_mosaic
     pose_cop_pub_ = it_.advertise("pose_compare", 1);
 
     // Event processing in batches / packets
+    idx_first_ev_pose_ = 0; // Index of first event of pose processing window
+    idx_first_ev_map_ = 0;  // Index of first event of event processing window
     time_packet_ = ros::Time(0);
 
     // Camera information
@@ -120,7 +123,7 @@ namespace dvs_mosaic
     VLOG(1) << "var_process_noise_: " << var_process_noise_;
     VLOG(1) << "var_R_tracking_: " << var_R_tracking_;
     VLOG(1) << "var_R_mapping_: " << var_R_mapping_;
-    VLOG(1) << "Average Pose: " << (average_pose_ ? "True" : "False");
+    VLOG(1) << "Average Pose: " << (average_pose_ ? "True" : "False") << "; with average level: " << average_level_;
 
     VLOG(1) << "Apply Gradient Threshold? " << (use_grad_thres_ ? "True" : "False;") << " Threshold: " << grad_thres_;
     VLOG(1) << "Apply Polygon Threshold? " << (use_polygon_thres_ ? "True" : "False;") << " Tracking area (percent): " << tracking_area_percent_;
@@ -297,23 +300,28 @@ namespace dvs_mosaic
     static unsigned long total_event_count = 0;
     total_event_count += msg->events.size();
 
-    if (packet_number == 0)
+    if (packet_number_mapper_ == 0)
     {
-      // Initialize time map and last rotation map
+      // Initialize time map and last rotation map for mapper
       time_map_ = cv::Mat(sensor_height_, sensor_width_, CV_64FC1, cv::Scalar(-0.01));
-      map_of_last_rotations_tracker_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
       map_of_last_rotations_mapper_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
     }
 
-    // Multiple calls to the tracker to consume the events in one message
-    while (num_events_update_ <= events_.size())
+    if (packet_number_tracker_ == 0)
     {
-      VLOG(1) << "Packet # " << packet_number << "  event# " << total_event_count;
-      packet_number++;
+      // Initialize last rotation map for tracker
+      map_of_last_rotations_tracker_ = std::vector<cv::Matx33d>(sensor_width_ * sensor_height_, cv::Matx33d(dNaN));
+    }
+
+    // Call the Tracker
+    while (idx_first_ev_pose_ + num_events_pose_update_ <= events_.size())
+    {
+      VLOG(1) << "Tracker Packet # " << packet_number_tracker_ << "  event# " << total_event_count;
+      packet_number_tracker_++;
 
       // Get subset of events
-      events_subset_ = std::vector<dvs_msgs::Event>(events_.begin(),
-                                                    events_.begin() + num_events_update_);
+      events_subset_ = std::vector<dvs_msgs::Event>(events_.begin() + idx_first_ev_pose_,
+                                                    events_.begin() + idx_first_ev_pose_ + num_events_pose_update_);
 
       // Compute time span of the events
       const ros::Time time_first = events_subset_.front().ts;
@@ -338,7 +346,7 @@ namespace dvs_mosaic
       // Compute ground truth rotation matrix (shared by all events in the batch)
       rotationAt(time_packet_, Rot_gt); // Ground truth pose
       // initilize rotation vector with ground truth
-      if (packet_number < init_packet_num_ && !tracker_standalone_)
+      if (packet_number_tracker_ < init_packet_num_ && !tracker_standalone_)
       {
         VLOG(1) << "using GT value";
         cv::Rodrigues(Rot_gt, rot_vec_);
@@ -380,46 +388,17 @@ namespace dvs_mosaic
       VLOG(1) << "skip count polygon: " << skip_count_polygon_;
       VLOG(1) << "skip count brightness: " << skip_count_bright_;
 
-      // Collect the estimated and GT pose in this packet for RMSE calculation
-      // Average estimated pose if required
-      cv::Matx33d Rot_cur = poseCollect();
+      // Collect the estimated pose
+      storeEstimatedPose();
 
+      idx_first_ev_pose_ += num_events_pose_update_;
 
-      // Call the Mapper
-      if(!tracker_standalone_ && packet_number!=1)
+      if(tracker_standalone_)
       {
-        for (const dvs_msgs::Event &ev : events_subset_prev_)
-        {
-          // update rotation map
-          const int idx = ev.y * sensor_width_ + ev.x;
-          cv::Matx33d Rot_prev = map_of_last_rotations_mapper_.at(idx);
-          map_of_last_rotations_mapper_[idx] = Rot_cur;
-          const double t_prev = time_map_.at<double>(ev.y, ev.x);
-          // Skip uninitialized pixel on mosaic map
-          if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
-          {
-            VLOG(3) << "Uninitialized event. Continue";
-            time_map_.at<double>(ev.y, ev.x) = ev.ts.toSec();
-            continue;
-          }
-
-          processEventForMap(ev, Rot_cur, Rot_prev);
-        }
+        // Slide
+        events_.erase(events_.begin(), events_.begin() + num_events_pose_update_);
+        idx_first_ev_pose_ -= num_events_map_update_;
       }
-     
-
-      // Reconstruct Mosiac map from gradients
-      if (packet_number % num_packet_reconstrct_mosaic_ == 0 && !tracker_standalone_)
-      {
-        VLOG(1) << "---- Reconstruct Mosaic ----";
-        poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
-        if(use_gaussian_blur_)
-          cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
-      }
-
-      if(!tracker_standalone_)
-        publishMap();
-
 
       // Debugging
       if (extra_log_debugging)
@@ -429,7 +408,7 @@ namespace dvs_mosaic
         static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log_rot", std::ofstream::trunc);
         static int count2 = 0;
         ofs << "###########################################" << std::endl;
-        ofs << "packet number: " << packet_number << std::endl;
+        ofs << "packet number: " << packet_number_tracker_ << std::endl;
         ofs << "packet count: " << packet_events_count << std::endl;
         ofs << "GT rotation vec: [" << rot_vec_gt(0, 0) << ", " << rot_vec_gt(1, 0) << ", " << rot_vec_gt(2, 0) << std::endl;
         ofs << "rotation vec:    [" << rot_vec_.at<double>(0, 0) << ", " << rot_vec_.at<double>(1, 0) <<", "<< rot_vec_.at<double>(2, 0) << std::endl;
@@ -448,17 +427,82 @@ namespace dvs_mosaic
         if (pose_cop_pub_.getNumSubscribers() > 0)
           pose_cop_pub_.publish(cv_image.toImageMsg());
       }
+    }
+
+
+    // Call Mapper
+    while (idx_first_ev_map_ + num_events_map_update_ <= events_.size() && !tracker_standalone_)
+    {
+
+      if(average_pose_ && packet_number_mapper_ + 2 != packet_number_tracker_)
+        break;
+
+      
+      VLOG(1) << "Mapper Packet # " << packet_number_mapper_ << "  event# " << total_event_count;
+      packet_number_mapper_++;
+
+      // Get subset of events
+      events_subset_ = std::vector<dvs_msgs::Event>(events_.begin() + idx_first_ev_map_,
+                                                    events_.begin() + idx_first_ev_map_ + num_events_map_update_);
+
+      // Compute time span of the events
+      const ros::Time time_first = events_subset_.front().ts;
+      const ros::Time time_last = events_subset_.back().ts;
+      const ros::Duration time_dt = time_last - time_first;
+      time_packet_ = time_first + time_dt * 0.5;
+      VLOG(2) << "TRACK: t = " << time_packet_.toSec() << ". Duration [s] = " << time_dt.toSec();
+
+    
+      // Compute ground truth rotation matrix (shared by all events in the batch)
+      rotationAt(time_packet_, Rot_gt); // Ground truth pose
+     
+     
+      // Average estimated pose if required
+      cv::Matx33d Rot_cur = getCurPose();
+     
+      for (const dvs_msgs::Event &ev : events_subset_)
+      {
+        // update rotation map
+        const int idx = ev.y * sensor_width_ + ev.x;
+        cv::Matx33d Rot_prev = map_of_last_rotations_mapper_.at(idx);
+        map_of_last_rotations_mapper_[idx] = Rot_cur;
+        const double t_prev = time_map_.at<double>(ev.y, ev.x);
+        // Skip uninitialized pixel on mosaic map
+        if (std::isnan(Rot_prev(0, 0)) || t_prev < 0)
+        {
+          VLOG(3) << "Uninitialized event. Continue";
+          time_map_.at<double>(ev.y, ev.x) = ev.ts.toSec();
+          continue;
+        }
+
+        processEventForMap(ev, Rot_cur, Rot_prev);
+      }
+      
+
+      // Reconstruct Mosiac map from gradients
+      if (packet_number_mapper_ % num_packet_reconstrct_mosaic_ == 0)
+      {
+        VLOG(1) << "---- Reconstruct Mosaic ----";
+        poisson::reconstructBrightnessFromGradientMap(grad_map_, mosaic_img_);
+        if (use_gaussian_blur_)
+          cv::GaussianBlur(mosaic_img_, mosaic_img_, cv::Size(0, 0), gaussian_blur_sigma_);
+      }
+
+      publishMap();
+
+      idx_first_ev_map_ += num_events_map_update_;
 
       // Slide
-      events_subset_prev_ = events_subset_;
-      events_.erase(events_.begin(), events_.begin() + num_events_update_);
+      events_.erase(events_.begin(), events_.begin() + num_events_map_update_);
+      idx_first_ev_map_ -= num_events_map_update_;
+      idx_first_ev_pose_ -= num_events_map_update_;
     }
   }
 
   /**
-  * \brief Function to collect estimated pose trajectory for visualization and RMSE calculation
+  * \brief Function to collect estimated pose trajectory from tracker
   */
-  cv::Matx33d Mosaic::poseCollect()
+  void Mosaic::storeEstimatedPose()
   {
     // Transfer current Tracker estimated pose from cv::Matx into Eigen representation
     cv::Matx33d Rot_interp;
@@ -471,23 +515,11 @@ namespace dvs_mosaic
       }
     Eigen::Quaterniond q_cur(R_eigen_est);
 
-    // Transfer GT pose from EIgen matrix to cv matrix
-    Eigen::Matrix3d R_eigen_gt;
-    for (int i = 0; i < 3; i++)
-      for (int j = 0; j < 3; j++)
-      {
-        R_eigen_gt(i, j) = Rot_gt(i, j);
-      }
-
-
     // Average Pose
-    cv::Matx33d Rot_ret;
-    Eigen::Matrix3d Rot_eigen_ret;
-    ;
-    std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
-    if (average_pose_ && ((!tracker_standalone_ && packet_number > init_packet_num_) || (tracker_standalone_ && packet_number>1))) // average poses
+    if (average_pose_ && ((!tracker_standalone_ && packet_number_tracker_ > init_packet_num_) || (tracker_standalone_ && packet_number_tracker_ > 1))) 
     {
       //VLOG(1) << "AVERAGE POSE";
+      std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
       Eigen::Quaterniond q_prev1 = it_cur->second.getEigenQuaternion();
       Eigen::Quaterniond q_prev2 = std::next(it_cur, 1)->second.getEigenQuaternion();
       double w = (q_cur.w() + q_prev1.w() + q_prev2.w()) / 3.0;
@@ -496,15 +528,24 @@ namespace dvs_mosaic
       double z = (q_cur.z() + q_prev1.z() + q_prev2.z()) / 3.0;
 
       Eigen::Quaterniond q_avg(w, x, y, z);
-      Rot_eigen_ret = q_avg.toRotationMatrix();
 
       it_cur->second = Transformation(Eigen::Vector3d(0, 0, 0), q_avg);
-      //cv::Rodrigues(Rot_cur, rot_vec_);
     }
-    else // not average pose; obtain the latest estiamted pose for the mapper
-    {
-      Rot_eigen_ret = it_cur->second.getEigenQuaternion();
-    }
+   
+    // Recorad estimated pose and covariance for graph
+    poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), q_cur)});
+    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+  }
+
+  /**
+  * \brief Function to obtain current estimated pose for mapper; smooth the poses if required
+  */
+  cv::Matx33d Mosaic::getCurPose()
+  {
+
+    cv::Matx33d Rot_ret;
+    Eigen::Matrix3d Rot_eigen_ret = poses_est_.find(time_packet_)->second.getRotationMatrix();
+
     //Transfer estimated pose from Eigen matrix to cv matrix
     for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++)
@@ -512,12 +553,15 @@ namespace dvs_mosaic
         Rot_ret(i, j) = Rot_eigen_ret(i, j);
       }
 
-    // Recorad estimated pose and covariance for graph
-    poses_est_.insert({time_packet_, Transformation(Eigen::Vector3d(0, 0, 0), q_cur)});
-    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+    // Transfer GT pose from Eigen matrix to cv matrix
+    Eigen::Matrix3d R_eigen_gt;
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+      {
+        R_eigen_gt(i, j) = Rot_gt(i, j);
+      }
 
     // record trajectory for RMSE
-    // possible error here; GT is the current packet value while estimated pose may be from previou packet due to averaging
     recorded_pose_gt_.push_back(Sophus::SO3d(R_eigen_gt));
     recorded_pose_est_.push_back(Sophus::SO3d(Rot_eigen_ret));
 
