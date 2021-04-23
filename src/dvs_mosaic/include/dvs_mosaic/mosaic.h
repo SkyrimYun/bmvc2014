@@ -95,8 +95,9 @@ private:
   void loadPoses();
   double gaussian_blur_sigma_;
   bool use_gaussian_blur_;
-  bool average_pose_;
-  int average_level_;
+  bool average_pose_; // set true to enable pose smoothness
+  bool average_method_; // 1 -> Quaternion avaergae; 0 -> Relative pose transform
+  int average_level_;   // number of poses being averaged; 3 or 5
 
   // Packet thresholds and statistics
   int skip_count_polygon_;

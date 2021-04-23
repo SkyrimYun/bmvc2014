@@ -22,16 +22,19 @@ namespace dvs_mosaic
     nh_private.param<int>("num_events_pose_update_", num_events_pose_update_, 500);
     nh_private.param<int>("num_events_map_update_", num_events_map_update_, 500);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
+
     nh_private.param<bool>("display_accuracy_", display_accuracy_, true);
     nh_private.param<int>("mosaic_height_", mosaic_height_, 512); // 1024,512,256
     nh_private.param<double>("var_process_noise_", var_process_noise_, 1e-4); // if input mosaic is from Ex7; use 1e-4; if input mosaic is from matlab, use 1e-3
     nh_private.param<double>("var_R_tracking_", var_R_tracking_, 0.0289);
     nh_private.param<bool>("measure_contrast_", measure_contrast_, true);
     //nh_private.param<double>("var_R_mapping_", var_R_mapping_, 0.0289);
+
     nh_private.param<int>("init_packet_num_", init_packet_num_, 300);
     nh_private.param<bool>("use_gaussian_blur_", use_gaussian_blur_, true);
     nh_private.param<double>("gaussian_blur_sigma_", gaussian_blur_sigma_, 2);
     nh_private.param<bool>("average_pose_", average_pose_, true);
+    nh_private.param<bool>("average_method_", average_method_, true);
     nh_private.param<int>("average_level_", average_level_, 3);
 
     nh_private.param<bool>("tracker_standalone_", tracker_standalone_, false);
@@ -500,7 +503,7 @@ namespace dvs_mosaic
   }
 
   /**
-  * \brief Function to collect estimated pose trajectory from tracker
+  * \brief Function to collect estimated pose trajectory from tracker; smooth the poses if required
   */
   void Mosaic::storeEstimatedPose()
   {
@@ -518,29 +521,49 @@ namespace dvs_mosaic
     // Average Pose
     if (average_pose_ && ((!tracker_standalone_ && packet_number_tracker_ > init_packet_num_) || (tracker_standalone_ && packet_number_tracker_> average_level_- 2 ))) 
     {
-      //VLOG(1) << "AVERAGE POSE";
       std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
-      Eigen::Quaterniond q_prev = it_cur->second.getEigenQuaternion();
-      double w = q_cur.w() + q_prev.w();
-      double x = q_cur.x() + q_prev.x();
-      double y = q_cur.y() + q_prev.y();
-      double z = q_cur.z() + q_prev.z();
-      for (int i = 0; i < average_level_-2; i++)
+      Eigen::Quaterniond q_avg;
+      if (average_method_ == 1)
       {
-        q_prev = std::next(it_cur, i)->second.getEigenQuaternion();
-        w += q_prev.w();
-        x += q_prev.x();
-        y += q_prev.y();
-        z += q_prev.z();
+        Eigen::Quaterniond q_prev = it_cur->second.getEigenQuaternion();
+        double w = q_cur.w() + q_prev.w();
+        double x = q_cur.x() + q_prev.x();
+        double y = q_cur.y() + q_prev.y();
+        double z = q_cur.z() + q_prev.z();
+        for (int i = 1; i < average_level_ - 1; i++)
+        {
+          q_prev = std::next(it_cur, i)->second.getEigenQuaternion();
+          w += q_prev.w();
+          x += q_prev.x();
+          y += q_prev.y();
+          z += q_prev.z();
+        }
+        w /= (double)average_level_;
+        x /= (double)average_level_;
+        y /= (double)average_level_;
+        z /= (double)average_level_;
+
+        q_avg = Eigen::Quaterniond(w, x, y, z);
       }
-      w /= (double)average_level_;
-      x /= (double)average_level_;
-      y /= (double)average_level_;
-      z /= (double)average_level_;
-
-      Eigen::Quaterniond q_avg(w, x, y, z);
-
-      for (int i = 0; i < (average_level_/2 - 1);i++)
+      else
+      {
+        Eigen::Quaterniond q_avg_relative(0, 0, 0, 0);
+        for (int i = 0; i < average_level_ - 1; i++)
+        {
+          Eigen::Quaterniond q_prev = std::next(it_cur, i)->second.getEigenQuaternion();
+          Eigen::Quaterniond q_reletive = q_prev * q_cur.inverse();
+          q_avg_relative.w() += q_reletive.w();
+          q_avg_relative.x() += q_reletive.x();
+          q_avg_relative.y() += q_reletive.y();
+          q_avg_relative.z() += q_reletive.z();
+        }
+        q_avg_relative.w() /= (double)(average_level_-1);
+        q_avg_relative.x() /= (double)(average_level_-1);
+        q_avg_relative.y() /= (double)(average_level_-1);
+        q_avg_relative.z() /= (double)(average_level_-1);
+        q_avg = Eigen::Quaterniond(q_avg_relative * q_cur);
+      }
+      for (int i = 0; i < (average_level_ / 2 - 1); i++)
         it_cur++;
       it_cur->second = Transformation(Eigen::Vector3d(0, 0, 0), q_avg);
     }
@@ -551,7 +574,7 @@ namespace dvs_mosaic
   }
 
   /**
-  * \brief Function to obtain current estimated pose for mapper; smooth the poses if required
+  * \brief Function to obtain current estimated pose for mapper
   */
   cv::Matx33d Mosaic::getCurPose()
   {
