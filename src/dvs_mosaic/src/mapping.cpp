@@ -79,7 +79,7 @@ namespace dvs_mosaic
     // debuging
     if(extra_log_debugging)
     {
-      static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log_mapping", std::ofstream::trunc);
+      static std::ofstream ofs(ros::package::getPath("dvs_mosaic") + "/log_mapping", std::ofstream::trunc);
       static int count = 0;
       ofs << "###########################################" << std::endl;
       ofs << count++ << std::endl;

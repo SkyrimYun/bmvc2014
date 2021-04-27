@@ -13,7 +13,7 @@ void Mosaic::loadPoses()
 {
   std::ifstream input_file;
   // FILL IN ... set the appropriate path to the file
-  input_file.open("/home/yunfan/work_spaces/EventVision/exe7/src/dvs_mosaic/data/synth1/poses.txt");
+  input_file.open(ros::package::getPath("dvs_mosaic") + "/data/synth1/poses.txt");
 
   // Open file to read data
   if (input_file.is_open())

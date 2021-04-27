@@ -106,7 +106,7 @@ void Mosaic::processEventForTrack(const dvs_msgs::Event &ev, const cv::Matx33d R
     // Debugging
     if (extra_log_debugging)
     {
-        static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log", std::ofstream::trunc);
+        static std::ofstream ofs(ros::package::getPath("dvs_mosaic") + "/log", std::ofstream::trunc);
         static int count1 = 0;
         ofs << "###########################################" << std::endl;
         ofs << count1++ << std::endl;

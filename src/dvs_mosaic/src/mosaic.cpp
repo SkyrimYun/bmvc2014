@@ -408,7 +408,7 @@ namespace dvs_mosaic
       {
         cv::Matx31d rot_vec_gt;
         cv::Rodrigues(Rot_gt, rot_vec_gt);
-        static std::ofstream ofs("/home/yunfan/work_spaces/master_thesis/bmvc2014/log_rot", std::ofstream::trunc);
+        static std::ofstream ofs(ros::package::getPath("dvs_mosaic") + "/log_rot", std::ofstream::trunc);
         static int count2 = 0;
         ofs << "###########################################" << std::endl;
         ofs << "packet number: " << packet_number_tracker_ << std::endl;
@@ -542,7 +542,7 @@ namespace dvs_mosaic
     {
       std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
       Eigen::Quaterniond q_avg;
-      if (average_method_ == 1)
+      if (average_method_ == 1) // smooth by average quaternion
       {
         Eigen::Quaterniond q_prev = it_cur->second.getEigenQuaternion();
         double w = q_cur.w() + q_prev.w();
@@ -564,13 +564,14 @@ namespace dvs_mosaic
 
         q_avg = Eigen::Quaterniond(w, x, y, z);
       }
-      else
+      else  // smooth by average relative quaternion
       {
         Eigen::Quaterniond q_avg_relative(0, 0, 0, 0);
         for (int i = 0; i < average_level_ - 1; i++)
         {
           Eigen::Quaterniond q_prev = std::next(it_cur, i)->second.getEigenQuaternion();
-          Eigen::Quaterniond q_reletive = q_prev * q_cur.inverse();
+          //Eigen::Quaterniond q_reletive = q_prev * q_cur.inverse();
+          Eigen::Quaterniond q_reletive = q_cur.inverse() * q_prev;
           q_avg_relative.w() += q_reletive.w();
           q_avg_relative.x() += q_reletive.x();
           q_avg_relative.y() += q_reletive.y();
@@ -580,8 +581,10 @@ namespace dvs_mosaic
         q_avg_relative.x() /= (double)(average_level_-1);
         q_avg_relative.y() /= (double)(average_level_-1);
         q_avg_relative.z() /= (double)(average_level_-1);
-        q_avg = Eigen::Quaterniond(q_avg_relative * q_cur);
+        //q_avg = Eigen::Quaterniond(q_avg_relative * q_cur);
+        q_avg = Eigen::Quaterniond(q_cur * q_avg_relative);
       }
+      // Find pose at the middle to store the average value
       for (int i = 0; i < (average_level_ / 2 - 1); i++)
         it_cur++;
       it_cur->second = Transformation(Eigen::Vector3d(0, 0, 0), q_avg);
