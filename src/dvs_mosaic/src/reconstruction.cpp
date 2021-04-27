@@ -34,6 +34,25 @@ namespace poisson
     }
     F[height-1][width-1] = 0.0;
 
+    
+    // // Compute right hand side (rhs) using Sobel masks
+    // std::vector<cv::Mat> channels;
+    // cv::split(grad_map, channels);
+    // cv::Mat dgdx, dgdy;
+    // cv::Sobel( channels.at(0), dgdx, CV_32FC1, 1, 0 ); // Gradient X
+    // cv::Sobel( channels.at(1), dgdy, CV_32FC1, 0, 1 ); // Gradient Y
+    // cv::Mat rhs = dgdx + dgdy;
+
+    // for(size_t i=0; i < height-1; ++i)
+    // {
+    //   for(size_t j=0; j < width-1; ++j)
+    //   {
+    //     F[i][j] = double( rhs.at<float>(i,j) );
+    //   }
+    // }
+    // F[height-1][width-1] = 0.0;
+    
+
     // Solve for M_xx + M_yy = F using Poisson solver,
     // with constant intensity (zero) boundary conditions
     const double gradient_on_boundary = 0.0;

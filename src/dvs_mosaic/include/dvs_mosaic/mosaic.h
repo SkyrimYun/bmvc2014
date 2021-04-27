@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <vector>
 
 #include <cv_bridge/cv_bridge.h>

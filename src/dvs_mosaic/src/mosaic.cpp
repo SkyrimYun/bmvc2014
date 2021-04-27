@@ -151,29 +151,29 @@ namespace dvs_mosaic
       // res = fread(mosaic_img_.data, sizeImg[0] * sizeImg[1], sizeof(float), pFile);
       // fclose(pFile);
 
-      std::string mosaic_path;
-      std::string mosaic_recons_path;
+      std::string mosaic_path = ros::package::getPath("dvs_mosaic") + "/data/mosaic_map_updated/";
+      std::string mosaic_recons_path = ros::package::getPath("dvs_mosaic") + "/data/mosaic_map_updated/";
       if (!use_partial_mosaic_)
       {
-        mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated.yml";
-        mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated.yml";
+        mosaic_path += "mosaic_updated.yml";
+        mosaic_recons_path += "mosaic_recons_updated.yml";
       }
       else
       {
         if(partial_mosaic_dur_ == 0.1)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_01s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_01s.yml";
+          mosaic_path += "mosaic_updated_partial_01s.yml";
+          mosaic_recons_path += "mosaic_recons_updated_partial_01s.yml";
         }
         else if(partial_mosaic_dur_ == 0.3)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_03s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_03s.yml";
+          mosaic_path += "mosaic_updated_partial_03s.yml";
+          mosaic_recons_path += "mosaic_recons_updated_partial_03s.yml";
         }
         else if (partial_mosaic_dur_ == 0.5)
         {
-          mosaic_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_updated_partial_05s.yml";
-          mosaic_recons_path = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_map_updated/mosaic_recons_updated_partial_05s.yml";
+          mosaic_path += "mosaic_updated_partial_05s.yml";
+          mosaic_recons_path += "mosaic_recons_updated_partial_05s.yml";
         }
       }
 
@@ -264,7 +264,7 @@ namespace dvs_mosaic
       matplotlibcpp::ylabel("angle [deg]");
       matplotlibcpp::title("wrapped angles vs time  RMSE: " + std::to_string(rmse));
       matplotlibcpp::legend();
-      matplotlibcpp::save("/home/yunfan/Pictures/tracker_4_14.png");
+      matplotlibcpp::save(ros::package::getPath("dvs_mosaic") + "/data/tracker_4_14.png");
       matplotlibcpp::show();
 
       matplotlibcpp::figure();
@@ -272,17 +272,17 @@ namespace dvs_mosaic
       matplotlibcpp::xlabel("time");
       matplotlibcpp::ylabel("[deg]");
       matplotlibcpp::title("sqrt(Trace of the state covariance)");
-      matplotlibcpp::save("/home/yunfan/Pictures/tracker_covar_4_14.png");
+      matplotlibcpp::save(ros::package::getPath("dvs_mosaic") + "/data/tracker_covar_4_14.png");
       matplotlibcpp::show();
     }
 
     // Save binary image
     if (!tracker_standalone_)
     {
-      std::string filename1 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_updated_partial.yml";
+      std::string filename1 = ros::package::getPath("dvs_mosaic") + "/data/mosaic_updated_partial.yml";
       cv::FileStorage fs1(filename1, cv::FileStorage::WRITE);
       fs1 << "mosaic map" << mosaic_img_;
-      std::string filename2 = "/home/yunfan/work_spaces/master_thesis/bmvc2014/src/dvs_mosaic/data/mosaic_recons_updated_partial.yml";
+      std::string filename2 = ros::package::getPath("dvs_mosaic") + "/data/mosaic_recons_updated_partial.yml";
       cv::FileStorage fs2(filename2, cv::FileStorage::WRITE);
       pano_ev = mosaic_img_.clone();
       image_util::normalize(pano_ev, pano_ev, 1.);
@@ -396,12 +396,12 @@ namespace dvs_mosaic
 
       idx_first_ev_pose_ += num_events_pose_update_;
 
-      if(tracker_standalone_)
-      {
-        // Slide
-        events_.erase(events_.begin(), events_.begin() + num_events_pose_update_);
-        idx_first_ev_pose_ -= num_events_map_update_;
-      }
+      // if(tracker_standalone_)
+      // {
+      //   // Slide
+      //   events_.erase(events_.begin(), events_.begin() + num_events_pose_update_);
+      //   idx_first_ev_pose_ -= num_events_pose_update_;
+      // }
 
       // Debugging
       if (extra_log_debugging)
@@ -434,7 +434,7 @@ namespace dvs_mosaic
 
 
     // Call Mapper
-    while (idx_first_ev_map_ + num_events_map_update_ <= events_.size() && !tracker_standalone_)
+    while (idx_first_ev_map_ + num_events_map_update_ <= events_.size())
     {
 
       if(average_pose_ && packet_number_mapper_ + (average_level_/2 + 1) != packet_number_tracker_)
@@ -462,7 +462,16 @@ namespace dvs_mosaic
      
       // Average estimated pose if required
       cv::Matx33d Rot_cur = getCurPose();
-     
+
+      // Skip mapper but record poses
+      if (tracker_standalone_)
+      {
+        // Slide
+        events_.erase(events_.begin(), events_.begin() + num_events_map_update_);
+        idx_first_ev_pose_ -= num_events_map_update_;
+        break;
+      }
+
       for (const dvs_msgs::Event &ev : events_subset_)
       {
         // update rotation map
@@ -519,6 +528,16 @@ namespace dvs_mosaic
     Eigen::Quaterniond q_cur(R_eigen_est);
 
     // Average Pose
+    /*
+    RMSE:
+    no average: 0.023679
+    method 1:
+      average level 5: 0.023615
+      average level 10: 0.024162
+    method 2:
+      average level 5: 0.022912
+      average level 10: 0.023577
+    */
     if (average_pose_ && ((!tracker_standalone_ && packet_number_tracker_ > init_packet_num_) || (tracker_standalone_ && packet_number_tracker_> average_level_- 2 ))) 
     {
       std::reverse_iterator<std::map<ros::Time, dvs_mosaic::Transformation>::iterator> it_cur = poses_est_.rbegin();
