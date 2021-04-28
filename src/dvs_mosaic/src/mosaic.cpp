@@ -4,7 +4,6 @@
 #include <math.h>
 #include <glog/logging.h>
 #include <camera_info_manager/camera_info_manager.h>
-#include <geometry_msgs/PoseStamped.h>
 #include <iostream>
 #include <opencv2/highgui.hpp> //cv::imwrite
 #include <opencv2/calib3d.hpp> // Rodrigues
@@ -52,6 +51,7 @@ namespace dvs_mosaic
 
     // Set up subscribers
     event_sub_ = nh_.subscribe("events", 0, &Mosaic::eventsCallback, this);
+    pose_sub_ = nh_.subscribe("pose", 0, &Mosaic::poseCallback, this);
     // set queue_size to 0 to avoid discarding messages (for correctness).
 
     // Set up publishers
@@ -93,8 +93,12 @@ namespace dvs_mosaic
 
     // Ground-truth poses for prototyping
     poses_.clear();
-    loadPoses();
-    VLOG(1)<< "GT poses size: " << poses_.size();
+    if(!new_dataset_)
+    {
+      loadPoses();
+      VLOG(1) << "GT poses size: " << poses_.size();
+    }
+    
 
     // Observation / Measurement function
     C_th_ = 0.45;                 // dataset
@@ -114,17 +118,21 @@ namespace dvs_mosaic
     grad_map_covar_ = cv::Mat(mosaic_size_, CV_32FC3, cv::Scalar(grad_init_variance, 0.f, grad_init_variance));
 
     // Estimated poses
-    VLOG(1)
-        << "Set initial pose: ";
-    poses_est_.insert(std::pair<ros::Time, Transformation>(poses_.begin()->first, poses_.begin()->second));
-    pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
+    if(!new_dataset_)
+    {
+      VLOG(1)
+          << "Set initial pose: ";
+      poses_est_.insert(std::pair<ros::Time, Transformation>(poses_.begin()->first, poses_.begin()->second));
+      pose_covar_est_.push_back(sqrt(cv::sum(covar_rot_ * cv::Mat::eye(3, 3, CV_64FC1))[0]) * 180 / M_PI);
 
-    // Print initial time and pose (the pose should be the identity)
-    VLOG(1) << "--Estimated pose "
-            << ". time = " << poses_est_.begin()->first;
-    VLOG(1) << "--T = ";
-    VLOG(1) << poses_est_.begin()->second;
-    VLOG(1) << "Set initial pose... done!";
+      // Print initial time and pose (the pose should be the identity)
+      VLOG(1) << "--Estimated pose "
+              << ". time = " << poses_est_.begin()->first;
+      VLOG(1) << "--T = ";
+      VLOG(1) << poses_est_.begin()->second;
+      VLOG(1) << "Set initial pose... done!";
+    }
+    
 
     VLOG(1) << "Tracker works alone? " << (tracker_standalone_ ? "True" : "False");
     VLOG(1) << "Init packet number: " << init_packet_num_;
@@ -518,9 +526,31 @@ namespace dvs_mosaic
   }
 
   /**
+  * \brief Function to process ground truth pose messages received by the ROS node
+  */
+  void Mosaic::poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
+  {
+
+    const geometry_msgs::Quaternion q = msg->pose.orientation;
+    const geometry_msgs::Point p = msg->pose.position;
+
+    const Eigen::Vector3d position(p.x, p.y, p.z);
+    const Eigen::Quaterniond quat(q.w, q.x, q.y, q.z);
+    Transformation T(position, quat);
+    poses_.insert({msg->header.stamp, T});
+
+    // Remove offset: pre-multiply by the inverse of the first pose so that
+    // the first rotation becomes the identity (and events project in the middle of the mosaic)
+
+    // get the first control pose
+    Transformation T0 = (*poses_.begin()).second;
+    poses_.rbegin()->second = (T0.inverse()) * poses_.rbegin()->second;
+  }
+
+      /**
   * \brief Function to collect estimated pose trajectory from tracker; smooth the poses if required
   */
-  void Mosaic::storeEstimatedPose()
+      void Mosaic::storeEstimatedPose()
   {
     // Transfer current Tracker estimated pose from cv::Matx into Eigen representation
     cv::Matx33d Rot_interp;

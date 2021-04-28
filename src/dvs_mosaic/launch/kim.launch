@@ -3,7 +3,7 @@
 
   <arg name="only_use_tracker" value="false"/>
   <arg name="partial_mosaic_dur" value="3.5"/>
-  <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u $(arg partial_mosaic_dur) $(find dvs_mosaic)/data/kim/events.bag" />
+  <node pkg="rosbag" type="play" name="player" args="--pause -r 1 -s 0 -u $(arg partial_mosaic_dur) $(find dvs_mosaic)/data/synth2/events.bag" />
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
     
     <param name="new_dataset_"      value="true"/>
@@ -44,6 +44,8 @@
 
     <!-- Which topic to listen? Map topic name of input events -->
     <remap from="events" to="/cam0/events" />
+    <remap from="pose" to="/cam0/pose" />
+
   </node>
 
 

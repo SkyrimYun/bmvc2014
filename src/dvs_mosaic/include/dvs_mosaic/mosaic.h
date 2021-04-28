@@ -8,6 +8,7 @@
 #include <image_transport/image_transport.h>
 #include <dvs_msgs/Event.h>
 #include <dvs_msgs/EventArray.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <opencv2/core/core.hpp>
 
@@ -37,10 +38,12 @@ private:
   ros::NodeHandle pnh_;  // Private node handle for reading parameters
 
   // Callback functions
-  void eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg);
+  void eventsCallback(const dvs_msgs::EventArray::ConstPtr &msg);
+  void poseCallback(const geometry_msgs::PoseStamped::ConstPtr &msg);
 
   // Subscribers
   ros::Subscriber event_sub_;
+  ros::Subscriber pose_sub_;
 
   // Publishers
   image_transport::Publisher mosaic_pub_;
