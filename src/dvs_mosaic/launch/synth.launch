@@ -1,10 +1,13 @@
 <launch>
 
 
-  <arg name="only_use_tracker" value="true"/>
+  <arg name="only_use_tracker" value="false"/>
   <arg name="partial_mosaic_dur" value="0.3"/>
   <node pkg="rosbag" type="play" name="player" args="--pause -r 0.1 -s 0 -u $(arg partial_mosaic_dur) $(find dvs_mosaic)/data/synth1/events.bag" />
   <node name="mosaic" pkg="dvs_mosaic" type="dvs_mosaic" output="screen" args="--v 1">
+  
+    <param name="new_dataset_"      value="false"/>
+
     <param name="display_accuracy_"      value="true"/>
     <param name="tracker_standalone_"    value="$(arg only_use_tracker)"/>
     <param name="use_partial_mosaic_"    value="true"/>

@@ -58,6 +58,9 @@ private:
   std::vector<dvs_msgs::Event> events_subset_;
   std::vector<dvs_msgs::Event> events_subset_prev_;
 
+  // Dataset
+  bool new_dataset_; // 0 -> syth1; 1 -> Kim's ESIM_panorama
+
   // Camera
   int sensor_width_, sensor_height_;
   int sensor_bottom_right, sensor_upper_left;

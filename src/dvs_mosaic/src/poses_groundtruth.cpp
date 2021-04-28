@@ -12,43 +12,80 @@ namespace dvs_mosaic
 void Mosaic::loadPoses()
 {
   std::ifstream input_file;
-  // FILL IN ... set the appropriate path to the file
-  input_file.open(ros::package::getPath("dvs_mosaic") + "/data/synth1/poses.txt");
-
-  // Open file to read data
-  if (input_file.is_open())
+  // set the appropriate path to the file
+  if(new_dataset_)
   {
-    VLOG(2) << "Control poses file opened";
-
-    int count = 0;
-    std::string line;
-    while( getline(input_file, line) )
+    input_file.open(ros::package::getPath("dvs_mosaic") + "/data/kim/poses.txt");
+    // Open file to read data
+    if (input_file.is_open())
     {
-      std::istringstream stm(line);
+      VLOG(2) << "Control poses file opened";
 
-      long sec, nsec;
-      double x, y, z, qx, qy, qz, qw;
-      Transformation T0;
-      if (stm >> sec >> nsec >> x >> y >> x >> qx >> qy >> qz >> qw)
+      int count = 0;
+      std::string line;
+      while (getline(input_file, line))
       {
-        ros::Time(sec,nsec);
-        const Eigen::Vector3d position(x,y,z);
-        const Eigen::Quaterniond quat(qw,qx,qy,qz);
-        Transformation T(position, quat);
-        poses_.insert( std::pair<ros::Time, Transformation>(ros::Time(sec,nsec), T) );
-      }
-      count++;
-    }
-    VLOG(2) << "count poses = " << count;
+        std::istringstream stm(line);
 
-    input_file.close();
+        double sec;
+        double x, y, z, qx, qy, qz, qw;
+        Transformation T0;
+        if (stm >> sec >> x >> y >> z >> qx >> qy >> qz >> qw)
+        {
+          ros::Time t(sec);
+          const Eigen::Vector3d position(x, y, z);
+          const Eigen::Quaterniond quat(qw, qx, qy, qz);
+          Transformation T(position, quat);
+          VLOG(2) << t;
+          VLOG(2) << T;
+          poses_.insert(std::pair<ros::Time, Transformation>(t, T));
+        }
+        count++;
+      }
+      VLOG(2) << "count poses = " << count;
+
+      input_file.close();
+    }
   }
+  else
+  {
+    input_file.open(ros::package::getPath("dvs_mosaic") + "/data/synth1/poses.txt");
+    // Open file to read data
+    if (input_file.is_open())
+    {
+      VLOG(2) << "Control poses file opened";
+
+      int count = 0;
+      std::string line;
+      while (getline(input_file, line))
+      {
+        std::istringstream stm(line);
+
+        long sec, nsec;
+        double x, y, z, qx, qy, qz, qw;
+        Transformation T0;
+        if (stm >> sec >> nsec >> x >> y >> z >> qx >> qy >> qz >> qw)
+        {
+          ros::Time(sec, nsec);
+          const Eigen::Vector3d position(x, y, z);
+          const Eigen::Quaterniond quat(qw, qx, qy, qz);
+          Transformation T(position, quat);
+          poses_.insert(std::pair<ros::Time, Transformation>(ros::Time(sec, nsec), T));
+        }
+        count++;
+      }
+      VLOG(2) << "count poses = " << count;
+
+      input_file.close();
+    }
+  }
+
+  
 
   // Remove offset: pre-multiply by the inverse of the first pose so that
   // the first rotation becomes the identity (and events project in the middle of the mosaic)
 
-  // FILL IN... get the first control pose
-  //Transformation T0 = ... ;
+  // get the first control pose
   Transformation T0 = (*poses_.begin()).second;
 
   size_t control_pose_idx = 0u;

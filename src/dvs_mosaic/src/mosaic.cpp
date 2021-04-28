@@ -19,6 +19,8 @@ namespace dvs_mosaic
       : nh_(nh), pnh_("~")
   {
     // Load parameters
+    nh_private.param<bool>("new_dataset_", new_dataset_, false);
+
     nh_private.param<int>("num_events_pose_update_", num_events_pose_update_, 500);
     nh_private.param<int>("num_events_map_update_", num_events_map_update_, 500);
     nh_private.param<int>("num_packet_reconstrct_mosaic_", num_packet_reconstrct_mosaic_, 100);
@@ -68,7 +70,11 @@ namespace dvs_mosaic
     time_packet_ = ros::Time(0);
 
     // Camera information
-    std::string cam_name("DVS-synthetic"); // yaml file should be in /home/ggb/.ros/camera_info
+    std::string cam_name;
+    if(new_dataset_)
+      cam_name = "KIM-synthetic";
+    else
+      cam_name = "DVS-synthetic"; // yaml file should be in /home/yunfan/.ros/camera_info
     camera_info_manager::CameraInfoManager cam_info(nh_, cam_name);
     dvs_cam_.fromCameraInfo(cam_info.getCameraInfo());
     const cv::Size sensor_resolution = dvs_cam_.fullResolution();
@@ -88,8 +94,8 @@ namespace dvs_mosaic
     // Ground-truth poses for prototyping
     poses_.clear();
     loadPoses();
+    VLOG(1)<< "GT poses size: " << poses_.size();
 
-  
     // Observation / Measurement function
     C_th_ = 0.45;                 // dataset
     if (measure_contrast_)
